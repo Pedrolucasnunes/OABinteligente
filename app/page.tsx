@@ -9,31 +9,44 @@ export default function Home() {
   const [result, setResult] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchQuestion() {
-      const { data } = await supabase
-        .from("questions")
-        .select("*")
+  async function fetchQuestion() {
+    const { data, error } = await supabase
+      .from("questions")
+      .select("*")
 
-      if (data && data.length > 0) {
-        const randomIndex = Math.floor(Math.random() * data.length)
-          setQuestion(data[randomIndex])
+    if (error) {
+      console.error(error)
+      return
     }
 
-      setQuestion(data)
-    }
-
-    fetchQuestion()
-  }, [])
-
-  function handleAnswer(option: string) {
-    setSelected(option)
-
-    if (option === question.correct_option) {
-      setResult("Correto ✅")
-    } else {
-      setResult("Errado ❌")
+    if (data && data.length > 0) {
+      const randomIndex = Math.floor(Math.random() * data.length)
+      setQuestion(data[randomIndex])
     }
   }
+
+  fetchQuestion()
+}, [])
+
+  async function handleAnswer(option: string) {
+  setSelected(option)
+
+  const isCorrect = option === question.correct_option
+
+  if (isCorrect) {
+    setResult("Correto ✅")
+  } else {
+    setResult("Errado ❌")
+  }
+
+  await supabase.from("attempts").insert([
+    {
+      question_id: question.id,
+      selected_option: option,
+      is_correct: isCorrect,
+    },
+  ])
+}
 
   return (
     <main className="min-h-screen bg-gray-100 p-10">
