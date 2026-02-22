@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import Link from "next/link"
 
 export default function Home() {
   const [question, setQuestion] = useState<any>(null)
@@ -135,3 +136,8 @@ export default function Home() {
     </main>
   )
 }
+      <Link href="/simulado">
+        <button className="mb-6 bg-black text-white px-4 py-2 rounded">
+          Iniciar Simulado Oficial
+        </button>
+      </Link>
