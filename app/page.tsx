@@ -11,13 +11,29 @@ export default function Home() {
   const [stats, setStats] = useState<any>(null)
   const [statsBySubject, setStatsBySubject] = useState<any[]>([])
   const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({})
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchQuestion()
-    fetchStats()
-    fetchStatsBySubject()
-    fetchSubjects()
+    checkUser()
   }, [])
+
+  async function checkUser() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      window.location.href = "/login"
+      return
+    }
+
+    setUserId(user.id)
+
+    await fetchSubjects()
+    await fetchQuestion()
+    await fetchStats(user.id)
+    await fetchStatsBySubject(user.id)
+  }
 
   async function fetchQuestion() {
     const { data, error } = await supabase
@@ -37,10 +53,11 @@ export default function Home() {
     }
   }
 
-  async function fetchStats() {
+  async function fetchStats(uid: string) {
     const { data, error } = await supabase
       .from("attempts")
       .select("*")
+      .eq("user_id", uid)
 
     if (error) {
       console.error(error)
@@ -74,10 +91,11 @@ export default function Home() {
     }
   }
 
-  async function fetchStatsBySubject() {
+  async function fetchStatsBySubject(uid: string) {
     const { data, error } = await supabase
       .from("attempts")
       .select("subject_id, is_correct")
+      .eq("user_id", uid)
 
     if (error || !data) return
 
@@ -105,20 +123,17 @@ export default function Home() {
   }
 
   async function handleAnswer(option: string) {
-    if (!question) return
+    if (!question || !userId) return
 
     setSelected(option)
 
     const isCorrect = option === question.correct_option
 
-    if (isCorrect) {
-      setResult("Correto ✅")
-    } else {
-      setResult("Errado ❌")
-    }
+    setResult(isCorrect ? "Correto ✅" : "Errado ❌")
 
     await supabase.from("attempts").insert([
       {
+        user_id: userId,
         question_id: question.id,
         selected_option: option,
         is_correct: isCorrect,
@@ -126,8 +141,8 @@ export default function Home() {
       },
     ])
 
-    await fetchStats()
-    await fetchStatsBySubject()
+    await fetchStats(userId)
+    await fetchStatsBySubject(userId)
   }
 
   return (
