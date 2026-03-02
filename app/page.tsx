@@ -13,6 +13,7 @@ export default function Home() {
   const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({})
   const [userId, setUserId] = useState<string | null>(null)
   const [ipo, setIpo] = useState<number | null>(null)
+  const [criticalSubjects, setCriticalSubjects] = useState<any[]>([])
 
   useEffect(() => {
     checkUser()
@@ -35,6 +36,7 @@ export default function Home() {
     await fetchStats(user.id)
     await fetchStatsBySubject(user.id)
     await calculateIPO(user.id)
+    await calculateCriticalSubjects(user.id)
   }
 
   async function fetchQuestion() {
@@ -167,6 +169,50 @@ export default function Home() {
     }
   }
 
+  async function calculateCriticalSubjects(uid: string) {
+    const { data: attempts } = await supabase
+      .from("attempts")
+      .select("subject_id, is_correct")
+      .eq("user_id", uid)
+
+    const { data: subjects } = await supabase
+      .from("subjects")
+      .select("id, name, weight")
+
+    if (!attempts || !subjects) return
+
+    const grouped: Record<string, { total: number; correct: number }> = {}
+
+    attempts.forEach((a) => {
+      if (!grouped[a.subject_id]) {
+        grouped[a.subject_id] = { total: 0, correct: 0 }
+      }
+      grouped[a.subject_id].total++
+      if (a.is_correct) grouped[a.subject_id].correct++
+    })
+
+    const riskList: any[] = []
+
+    subjects.forEach((subject) => {
+      const stats = grouped[subject.id]
+
+      if (stats && stats.total >= 3) {
+        const performance = stats.correct / stats.total
+        const risk = Number(subject.weight) * (1 - performance)
+
+        riskList.push({
+          name: subject.name,
+          performance: (performance * 100).toFixed(1),
+          risk,
+        })
+      }
+    })
+
+    riskList.sort((a, b) => b.risk - a.risk)
+
+    setCriticalSubjects(riskList.slice(0, 3))
+  }
+
   async function handleAnswer(option: string) {
     if (!question || !userId) return
 
@@ -188,6 +234,7 @@ export default function Home() {
     await fetchStats(userId)
     await fetchStatsBySubject(userId)
     await calculateIPO(userId)
+    await calculateCriticalSubjects(userId)
   }
 
   return (
@@ -201,6 +248,7 @@ export default function Home() {
           Iniciar Simulado Oficial
         </button>
       </Link>
+
       {question && (
         <div className="mt-6 bg-white p-6 rounded shadow max-w-xl text-black">
           <p className="font-semibold mb-4">
@@ -220,11 +268,7 @@ export default function Home() {
             ))}
           </div>
 
-          {result && (
-            <div className="mt-4 font-bold">
-              {result}
-            </div>
-          )}
+          {result && <div className="mt-4 font-bold">{result}</div>}
 
           {result && (
             <button
@@ -236,31 +280,28 @@ export default function Home() {
           )}
         </div>
       )}
+
       {ipo !== null && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Índice de Preparação OAB</h2>
           <p className="text-2xl font-bold">{ipo}</p>
+        </div>
+      )}
 
-          {ipo >= 80 && (
-            <p className="text-green-600 font-semibold mt-2">
-              Alta probabilidade de aprovação.
-            </p>
-          )}
-          {ipo >= 70 && ipo < 80 && (
-            <p className="text-blue-600 font-semibold mt-2">
-              Bom nível competitivo.
-            </p>
-          )}
-          {ipo >= 60 && ipo < 70 && (
-            <p className="text-yellow-600 font-semibold mt-2">
-              Zona de risco. Ajustes estratégicos necessários.
-            </p>
-          )}
-          {ipo < 60 && (
-            <p className="text-red-600 font-semibold mt-2">
-              Alto risco de reprovação no cenário atual.
-            </p>
-          )}
+      {criticalSubjects.length > 0 && (
+        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+          <h2 className="font-bold mb-3">
+            Matérias que mais impactam sua aprovação:
+          </h2>
+
+          {criticalSubjects.map((subject, index) => (
+            <div key={index} className="mb-2">
+              <p>
+                {index + 1}º {subject.name} —{" "}
+                <strong>{subject.performance}% de acerto</strong>
+              </p>
+            </div>
+          ))}
         </div>
       )}
 
