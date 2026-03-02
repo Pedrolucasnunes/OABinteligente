@@ -67,19 +67,27 @@ export default function Simulado() {
   }
 
   async function saveResult() {
-    const correct = calculateResult()
-    const total = questions.length
-    const percentage = (correct / total) * 100
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    await supabase.from("simulados").insert([
-      {
-        total_questoes: total,
-        acertos: correct,
-        percentual: percentage,
-        aprovado: correct >= 40,
-      },
-    ])
-  }
+  if (!user) return
+
+  const correct = calculateResult()
+  const total = questions.length
+  const percentage = (correct / total) * 100
+
+  await supabase.from("exam_sessions").insert([
+    {
+      user_id: user.id,
+      total_questions: total,
+      correct_answers: correct,
+      percentage,
+      approved: correct >= 40,
+      finished_at: new Date().toISOString(),
+    },
+  ])
+}
 
   if (questions.length === 0) {
     return <div className="p-10">Carregando simulado...</div>
