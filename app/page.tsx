@@ -12,6 +12,7 @@ export default function Home() {
   const [statsBySubject, setStatsBySubject] = useState<any[]>([])
   const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({})
   const [userId, setUserId] = useState<string | null>(null)
+  const [ipo, setIpo] = useState<number | null>(null)
 
   useEffect(() => {
     checkUser()
@@ -33,6 +34,7 @@ export default function Home() {
     await fetchQuestion()
     await fetchStats(user.id)
     await fetchStatsBySubject(user.id)
+    await calculateIPO(user.id)
   }
 
   async function fetchQuestion() {
@@ -122,13 +124,55 @@ export default function Home() {
     setStatsBySubject(result)
   }
 
+  async function calculateIPO(uid: string) {
+    const { data: attempts } = await supabase
+      .from("attempts")
+      .select("subject_id, is_correct")
+      .eq("user_id", uid)
+
+    const { data: subjects } = await supabase
+      .from("subjects")
+      .select("id, weight")
+
+    if (!attempts || !subjects) return
+
+    const grouped: Record<string, { total: number; correct: number }> = {}
+
+    attempts.forEach((a) => {
+      if (!grouped[a.subject_id]) {
+        grouped[a.subject_id] = { total: 0, correct: 0 }
+      }
+      grouped[a.subject_id].total++
+      if (a.is_correct) grouped[a.subject_id].correct++
+    })
+
+    let weightedSum = 0
+    let totalWeight = 0
+
+    subjects.forEach((subject) => {
+      const stats = grouped[subject.id]
+
+      if (stats && stats.total >= 3) {
+        const performance = stats.correct / stats.total
+        weightedSum += performance * Number(subject.weight)
+        totalWeight += Number(subject.weight)
+      }
+    })
+
+    if (totalWeight > 0) {
+      const finalScore = (weightedSum / totalWeight) * 100
+      setIpo(Number(finalScore.toFixed(1)))
+    } else {
+      setIpo(null)
+    }
+  }
+
   async function handleAnswer(option: string) {
     if (!question || !userId) return
 
     setSelected(option)
 
     const isCorrect = option === question.correct_option
-
     setResult(isCorrect ? "Correto ✅" : "Errado ❌")
 
     await supabase.from("attempts").insert([
@@ -143,6 +187,7 @@ export default function Home() {
 
     await fetchStats(userId)
     await fetchStatsBySubject(userId)
+    await calculateIPO(userId)
   }
 
   return (
@@ -156,9 +201,8 @@ export default function Home() {
           Iniciar Simulado Oficial
         </button>
       </Link>
-
       {question && (
-        <div className="bg-white p-6 rounded shadow max-w-xl text-black">
+        <div className="mt-6 bg-white p-6 rounded shadow max-w-xl text-black">
           <p className="font-semibold mb-4">
             {question.statement}
           </p>
@@ -192,6 +236,33 @@ export default function Home() {
           )}
         </div>
       )}
+      {ipo !== null && (
+        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+          <h2 className="font-bold mb-2">Índice de Preparação OAB</h2>
+          <p className="text-2xl font-bold">{ipo}</p>
+
+          {ipo >= 80 && (
+            <p className="text-green-600 font-semibold mt-2">
+              Alta probabilidade de aprovação.
+            </p>
+          )}
+          {ipo >= 70 && ipo < 80 && (
+            <p className="text-blue-600 font-semibold mt-2">
+              Bom nível competitivo.
+            </p>
+          )}
+          {ipo >= 60 && ipo < 70 && (
+            <p className="text-yellow-600 font-semibold mt-2">
+              Zona de risco. Ajustes estratégicos necessários.
+            </p>
+          )}
+          {ipo < 60 && (
+            <p className="text-red-600 font-semibold mt-2">
+              Alto risco de reprovação no cenário atual.
+            </p>
+          )}
+        </div>
+      )}
 
       {stats && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
@@ -206,7 +277,6 @@ export default function Home() {
       {statsBySubject.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Desempenho por Matéria:</h2>
-
           {statsBySubject.map((stat) => (
             <div key={stat.subject_id} className="mb-2">
               <p>
