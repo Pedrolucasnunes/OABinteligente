@@ -18,6 +18,7 @@ export default function Home() {
   const [strategicSimulations, setStrategicSimulations] = useState<any[]>([])
   const [strategicPlan, setStrategicPlan] = useState<any[]>([])
   const [confidenceIndex, setConfidenceIndex] = useState<number | null>(null)
+  const [approvalProbability, setApprovalProbability] = useState<number | null>(null)
 
   useEffect(() => {
     checkUser()
@@ -46,6 +47,18 @@ export default function Home() {
     await calculateCriticalSubjects(user.id)
     await calculateStrategicSimulation(user.id)
     await calculateStrategicPlan(user.id)
+  }
+
+  function calculateApprovalProbability(score: number, confidence: number | null) {
+    if (confidence === null) return null
+
+    const a = 0.35
+    const logistic = 1 / (1 + Math.exp(-a * (score - 40)))
+
+    // ajusta pela confiabilidade
+    const adjusted = logistic * (confidence / 100)
+
+    return Number((adjusted * 100).toFixed(1))
   }
 
   async function fetchQuestion() {
@@ -165,6 +178,8 @@ export default function Home() {
     const missing = exam.passing_score - rounded
 
     setProjectedScore(rounded)
+    const probability = calculateApprovalProbability(rounded, confidenceIndex)
+    setApprovalProbability(probability)
     setMissingPoints(missing > 0 ? Number(missing.toFixed(1)) : 0)
   }
 
@@ -327,6 +342,14 @@ export default function Home() {
       )}
 
       {/* NOTA PROJETADA */}
+      {approvalProbability !== null && (
+        <div className="mt-4">
+          <p className="text-lg font-semibold text-purple-700">
+            Probabilidade Real de Aprovação: {approvalProbability}%
+          </p>
+        </div>
+      )}
+      
       {projectedScore !== null && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Nota Projetada</h2>
