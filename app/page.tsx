@@ -15,10 +15,8 @@ export default function Home() {
   const [projectedScore, setProjectedScore] = useState<number | null>(null)
   const [missingPoints, setMissingPoints] = useState<number | null>(null)
   const [criticalSubjects, setCriticalSubjects] = useState<any[]>([])
-  const [approvalChance, setApprovalChance] = useState<number | null>(null)
-
-  // 🆕 NOVO ESTADO
   const [strategicSimulations, setStrategicSimulations] = useState<any[]>([])
+  const [strategicPlan, setStrategicPlan] = useState<any[]>([])
 
   useEffect(() => {
     checkUser()
@@ -40,8 +38,8 @@ export default function Home() {
     await fetchStatsBySubject(user.id)
     await calculateProjectedScore(user.id)
     await calculateCriticalSubjects(user.id)
-    await calculateApprovalChance(user.id)
-    await calculateStrategicSimulation(user.id) // 🆕
+    await calculateStrategicSimulation(user.id)
+    await calculateStrategicPlan(user.id)
   }
 
   async function fetchQuestion() {
@@ -162,17 +160,27 @@ export default function Home() {
     setMissingPoints(missing > 0 ? Number(missing.toFixed(1)) : 0)
   }
 
+  // MATÉRIAS CRÍTICAS
   async function calculateCriticalSubjects(uid: string) {
+    const { data: exam } = await supabase
+      .from("exams")
+      .select("id")
+      .eq("name", "OAB 1ª Fase")
+      .single()
+
+    if (!exam) return
+
+    const { data: distribution } = await supabase
+      .from("exam_subject_distribution")
+      .select("subject_id, question_count")
+      .eq("exam_id", exam.id)
+
     const { data: attempts } = await supabase
       .from("attempts")
       .select("subject_id, is_correct")
       .eq("user_id", uid)
 
-    const { data: distribution } = await supabase
-      .from("exam_subject_distribution")
-      .select("subject_id, question_count")
-
-    if (!attempts || !distribution) return
+    if (!distribution || !attempts) return
 
     const grouped: Record<string, { total: number; correct: number }> = {}
 
@@ -204,86 +212,42 @@ export default function Home() {
     setCriticalSubjects(riskList.slice(0, 3))
   }
 
-  // 🆕 SIMULADOR ESTRATÉGICO
+  // ESTRATÉGIA DE GANHO RÁPIDO
   async function calculateStrategicSimulation(uid: string) {
-    const { data: exam } = await supabase
-      .from("exams")
-      .select("*")
-      .eq("name", "OAB 1ª Fase")
-      .single()
-
-    if (!exam) return
-
-    const { data: distribution } = await supabase
-      .from("exam_subject_distribution")
-      .select("subject_id, question_count")
-      .eq("exam_id", exam.id)
-
-    const { data: attempts } = await supabase
-      .from("attempts")
-      .select("subject_id, is_correct")
-      .eq("user_id", uid)
-
-    if (!distribution || !attempts) return
-
-    const grouped: Record<string, { total: number; correct: number }> = {}
-
-    attempts.forEach((a) => {
-      if (!grouped[a.subject_id]) {
-        grouped[a.subject_id] = { total: 0, correct: 0 }
-      }
-      grouped[a.subject_id].total++
-      if (a.is_correct) grouped[a.subject_id].correct++
-    })
-
-    let currentScore = 0
-
-    distribution.forEach((item) => {
-      const stats = grouped[item.subject_id]
-      if (stats && stats.total > 0) {
-        const performance = stats.correct / stats.total
-        currentScore += performance * item.question_count
-      }
-    })
+    if (!projectedScore) return
 
     const simulations: any[] = []
 
-    distribution.forEach((item) => {
-      const stats = grouped[item.subject_id]
+    criticalSubjects.forEach((subject) => {
+      const gain = subject.risk * 0.4
 
-      if (stats && stats.total > 0) {
-        const currentPerformance = stats.correct / stats.total
-        const targetPerformance = 0.6
-
-        if (currentPerformance >= targetPerformance) return
-
-        const newScore =
-          currentScore -
-          currentPerformance * item.question_count +
-          targetPerformance * item.question_count
-
-        const gain = newScore - currentScore
-
-        simulations.push({
-          subject_id: item.subject_id,
-          newScore: Number(newScore.toFixed(1)),
-          gain: Number(gain.toFixed(1)),
-        })
-      }
+      simulations.push({
+        subject_id: subject.subject_id,
+        gain: gain.toFixed(1),
+      })
     })
 
-    simulations.sort((a, b) => b.gain - a.gain)
     setStrategicSimulations(simulations.slice(0, 3))
   }
 
-  async function calculateApprovalChance(uid: string) {
-    if (!projectedScore) {
-      setApprovalChance(null)
+  // PLANO AUTOMÁTICO PARA BATER 40
+  async function calculateStrategicPlan(uid: string) {
+    if (!projectedScore) return
+
+    if (projectedScore >= 40) {
+      setStrategicPlan([])
       return
     }
 
-    const chance = (projectedScore / 80) * 100
-    setApprovalChance(Number(chance.toFixed(1)))
+    const needed = 40 - projectedScore
+
+    const plans = criticalSubjects.map((subject) => ({
+      subject_id: subject.subject_id,
+      target: "Elevar desempenho",
+      impact: subject.risk.toFixed(1),
+    }))
+
+    setStrategicPlan(plans.slice(0, 3))
   }
 
   async function handleAnswer(option: string) {
@@ -307,8 +271,8 @@ export default function Home() {
     await fetchStatsBySubject(userId)
     await calculateProjectedScore(userId)
     await calculateCriticalSubjects(userId)
-    await calculateApprovalChance(userId)
-    await calculateStrategicSimulation(userId) // 🆕
+    await calculateStrategicSimulation(userId)
+    await calculateStrategicPlan(userId)
   }
 
   return (
@@ -323,6 +287,7 @@ export default function Home() {
         </button>
       </Link>
 
+      {/* QUESTÕES */}
       {question && (
         <div className="mt-6 bg-white p-6 rounded shadow max-w-xl text-black">
           <p className="font-semibold mb-4">{question.statement}</p>
@@ -353,6 +318,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* NOTA PROJETADA */}
       {projectedScore !== null && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Nota Projetada</h2>
@@ -370,11 +336,10 @@ export default function Home() {
         </div>
       )}
 
+      {/* ESTRATÉGIA DE GANHO RÁPIDO */}
       {strategicSimulations.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-3">
-            Estratégia de Ganho Rápido:
-          </h2>
+          <h2 className="font-bold mb-3">Estratégia de Ganho Rápido:</h2>
 
           {strategicSimulations.map((sim, index) => (
             <div key={index} className="mb-2">
@@ -383,15 +348,36 @@ export default function Home() {
                 <strong>
                   {subjectsMap[sim.subject_id] || "Matéria"}
                 </strong>{" "}
-                para 60%, sua nota vai para{" "}
-                <strong>{sim.newScore}</strong>{" "}
-                (+{sim.gain} pontos)
+                para 60%, pode ganhar aproximadamente{" "}
+                <strong>+{sim.gain}</strong> pontos.
               </p>
             </div>
           ))}
         </div>
       )}
 
+      {/* PLANO ESTRATÉGICO AUTOMÁTICO */}
+      {strategicPlan.length > 0 && (
+        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+          <h2 className="font-bold mb-3">
+            Plano Estratégico para bater 40 pontos:
+          </h2>
+
+          {strategicPlan.map((plan, index) => (
+            <div key={index} className="mb-2">
+              <p>
+                Priorize{" "}
+                <strong>
+                  {subjectsMap[plan.subject_id] || "Matéria"}
+                </strong>{" "}
+                — impacto estimado de {plan.impact} pontos.
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* MATÉRIAS CRÍTICAS */}
       {criticalSubjects.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-3">
@@ -410,6 +396,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* DESEMPENHO GERAL */}
       {stats && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Seu desempenho geral:</h2>
@@ -420,6 +407,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* DESEMPENHO POR MATÉRIA */}
       {statsBySubject.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Desempenho por Matéria:</h2>
