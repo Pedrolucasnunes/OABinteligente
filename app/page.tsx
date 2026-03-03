@@ -17,10 +17,16 @@ export default function Home() {
   const [criticalSubjects, setCriticalSubjects] = useState<any[]>([])
   const [strategicSimulations, setStrategicSimulations] = useState<any[]>([])
   const [strategicPlan, setStrategicPlan] = useState<any[]>([])
+  const [confidenceIndex, setConfidenceIndex] = useState<number | null>(null)
 
   useEffect(() => {
     checkUser()
   }, [])
+  function calculateConfidence(totalQuestions: number) {
+    const k = 0.01
+    const confidence = 1 - Math.exp(-k * totalQuestions)
+    return Number((confidence * 100).toFixed(1))
+  }
 
   async function checkUser() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -71,6 +77,8 @@ export default function Home() {
         wrong: total - correct,
         percentage,
       })
+      const confidence = calculateConfidence(total)
+      setConfidenceIndex(confidence)
     }
   }
 
@@ -404,6 +412,11 @@ export default function Home() {
           <p>Acertos: {stats.correct}</p>
           <p>Erros: {stats.wrong}</p>
           <p>Taxa de acerto: {stats.percentage}%</p>
+          {confidenceIndex !== null && (
+            <p className="mt-2 text-blue-600 font-semibold">
+              Índice de Confiabilidade Estatística: {confidenceIndex}%
+            </p>
+          )}
         </div>
       )}
 
