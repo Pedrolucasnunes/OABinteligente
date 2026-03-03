@@ -14,15 +14,14 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null)
   const [ipo, setIpo] = useState<number | null>(null)
   const [criticalSubjects, setCriticalSubjects] = useState<any[]>([])
+  const [approvalChance, setApprovalChance] = useState<number | null>(null)
 
   useEffect(() => {
     checkUser()
   }, [])
 
   async function checkUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
       window.location.href = "/login"
@@ -37,17 +36,11 @@ export default function Home() {
     await fetchStatsBySubject(user.id)
     await calculateIPO(user.id)
     await calculateCriticalSubjects(user.id)
+    await calculateApprovalChance(user.id)
   }
 
   async function fetchQuestion() {
-    const { data, error } = await supabase
-      .from("questions")
-      .select("*")
-
-    if (error) {
-      console.error(error)
-      return
-    }
+    const { data } = await supabase.from("questions").select("*")
 
     if (data && data.length > 0) {
       const randomIndex = Math.floor(Math.random() * data.length)
@@ -58,21 +51,17 @@ export default function Home() {
   }
 
   async function fetchStats(uid: string) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("attempts")
       .select("*")
       .eq("user_id", uid)
 
-    if (error) {
-      console.error(error)
-      return
-    }
-
     if (data) {
       const total = data.length
       const correct = data.filter((a) => a.is_correct).length
-      const percentage =
-        total > 0 ? ((correct / total) * 100).toFixed(1) : "0"
+      const percentage = total > 0
+        ? ((correct / total) * 100).toFixed(1)
+        : "0"
 
       setStats({
         total,
@@ -96,12 +85,12 @@ export default function Home() {
   }
 
   async function fetchStatsBySubject(uid: string) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("attempts")
       .select("subject_id, is_correct")
       .eq("user_id", uid)
 
-    if (error || !data) return
+    if (!data) return
 
     const grouped: Record<string, { total: number; correct: number }> = {}
 
@@ -109,17 +98,12 @@ export default function Home() {
       if (!grouped[item.subject_id]) {
         grouped[item.subject_id] = { total: 0, correct: 0 }
       }
-
       grouped[item.subject_id].total++
-      if (item.is_correct) {
-        grouped[item.subject_id].correct++
-      }
+      if (item.is_correct) grouped[item.subject_id].correct++
     })
 
     const result = Object.entries(grouped).map(([subject_id, values]) => ({
       subject_id,
-      total: values.total,
-      correct: values.correct,
       percentage: ((values.correct / values.total) * 100).toFixed(1),
     }))
 
@@ -153,7 +137,6 @@ export default function Home() {
 
     subjects.forEach((subject) => {
       const stats = grouped[subject.id]
-
       if (stats && stats.total >= 3) {
         const performance = stats.correct / stats.total
         weightedSum += performance * Number(subject.weight)
@@ -195,7 +178,6 @@ export default function Home() {
 
     subjects.forEach((subject) => {
       const stats = grouped[subject.id]
-
       if (stats && stats.total >= 3) {
         const performance = stats.correct / stats.total
         const risk = Number(subject.weight) * (1 - performance)
@@ -209,8 +191,31 @@ export default function Home() {
     })
 
     riskList.sort((a, b) => b.risk - a.risk)
-
     setCriticalSubjects(riskList.slice(0, 3))
+  }
+
+  async function calculateApprovalChance(uid: string) {
+    if (!ipo) {
+      setApprovalChance(null)
+      return
+    }
+
+    const { data: sessions } = await supabase
+      .from("exam_sessions")
+      .select("id")
+      .eq("user_id", uid)
+
+    const count = sessions?.length || 0
+
+    let confidenceFactor = 0.85
+    if (count === 1) confidenceFactor = 0.95
+    if (count >= 2) confidenceFactor = 1.05
+
+    let chance = ipo * confidenceFactor
+    if (chance > 95) chance = 95
+    if (chance < 5) chance = 5
+
+    setApprovalChance(Number(chance.toFixed(1)))
   }
 
   async function handleAnswer(option: string) {
@@ -235,6 +240,7 @@ export default function Home() {
     await fetchStatsBySubject(userId)
     await calculateIPO(userId)
     await calculateCriticalSubjects(userId)
+    await calculateApprovalChance(userId)
   }
 
   return (
@@ -251,9 +257,7 @@ export default function Home() {
 
       {question && (
         <div className="mt-6 bg-white p-6 rounded shadow max-w-xl text-black">
-          <p className="font-semibold mb-4">
-            {question.statement}
-          </p>
+          <p className="font-semibold mb-4">{question.statement}</p>
 
           <div className="space-y-3">
             {["A", "B", "C", "D", "E"].map((letter) => (
@@ -285,6 +289,13 @@ export default function Home() {
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Índice de Preparação OAB</h2>
           <p className="text-2xl font-bold">{ipo}</p>
+        </div>
+      )}
+
+      {approvalChance !== null && (
+        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+          <h2 className="font-bold mb-2">Projeção de Aprovação</h2>
+          <p className="text-2xl font-bold">{approvalChance}%</p>
         </div>
       )}
 
