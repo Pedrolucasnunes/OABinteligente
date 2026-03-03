@@ -12,9 +12,13 @@ export default function Home() {
   const [statsBySubject, setStatsBySubject] = useState<any[]>([])
   const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({})
   const [userId, setUserId] = useState<string | null>(null)
-  const [ipo, setIpo] = useState<number | null>(null)
+  const [projectedScore, setProjectedScore] = useState<number | null>(null)
+  const [missingPoints, setMissingPoints] = useState<number | null>(null)
   const [criticalSubjects, setCriticalSubjects] = useState<any[]>([])
   const [approvalChance, setApprovalChance] = useState<number | null>(null)
+
+  // 🆕 NOVO ESTADO
+  const [strategicSimulations, setStrategicSimulations] = useState<any[]>([])
 
   useEffect(() => {
     checkUser()
@@ -34,9 +38,10 @@ export default function Home() {
     await fetchQuestion()
     await fetchStats(user.id)
     await fetchStatsBySubject(user.id)
-    await calculateIPO(user.id)
+    await calculateProjectedScore(user.id)
     await calculateCriticalSubjects(user.id)
     await calculateApprovalChance(user.id)
+    await calculateStrategicSimulation(user.id) // 🆕
   }
 
   async function fetchQuestion() {
@@ -59,9 +64,8 @@ export default function Home() {
     if (data) {
       const total = data.length
       const correct = data.filter((a) => a.is_correct).length
-      const percentage = total > 0
-        ? ((correct / total) * 100).toFixed(1)
-        : "0"
+      const percentage =
+        total > 0 ? ((correct / total) * 100).toFixed(1) : "0"
 
       setStats({
         total,
@@ -110,17 +114,26 @@ export default function Home() {
     setStatsBySubject(result)
   }
 
-  async function calculateIPO(uid: string) {
+  async function calculateProjectedScore(uid: string) {
+    const { data: exam } = await supabase
+      .from("exams")
+      .select("*")
+      .eq("name", "OAB 1ª Fase")
+      .single()
+
+    if (!exam) return
+
+    const { data: distribution } = await supabase
+      .from("exam_subject_distribution")
+      .select("subject_id, question_count")
+      .eq("exam_id", exam.id)
+
     const { data: attempts } = await supabase
       .from("attempts")
       .select("subject_id, is_correct")
       .eq("user_id", uid)
 
-    const { data: subjects } = await supabase
-      .from("subjects")
-      .select("id, weight")
-
-    if (!attempts || !subjects) return
+    if (!distribution || !attempts) return
 
     const grouped: Record<string, { total: number; correct: number }> = {}
 
@@ -132,24 +145,21 @@ export default function Home() {
       if (a.is_correct) grouped[a.subject_id].correct++
     })
 
-    let weightedSum = 0
-    let totalWeight = 0
+    let projected = 0
 
-    subjects.forEach((subject) => {
-      const stats = grouped[subject.id]
-      if (stats && stats.total >= 3) {
+    distribution.forEach((item) => {
+      const stats = grouped[item.subject_id]
+      if (stats && stats.total > 0) {
         const performance = stats.correct / stats.total
-        weightedSum += performance * Number(subject.weight)
-        totalWeight += Number(subject.weight)
+        projected += performance * item.question_count
       }
     })
 
-    if (totalWeight > 0) {
-      const finalScore = (weightedSum / totalWeight) * 100
-      setIpo(Number(finalScore.toFixed(1)))
-    } else {
-      setIpo(null)
-    }
+    const rounded = Number(projected.toFixed(1))
+    const missing = exam.passing_score - rounded
+
+    setProjectedScore(rounded)
+    setMissingPoints(missing > 0 ? Number(missing.toFixed(1)) : 0)
   }
 
   async function calculateCriticalSubjects(uid: string) {
@@ -158,11 +168,11 @@ export default function Home() {
       .select("subject_id, is_correct")
       .eq("user_id", uid)
 
-    const { data: subjects } = await supabase
-      .from("subjects")
-      .select("id, name, weight")
+    const { data: distribution } = await supabase
+      .from("exam_subject_distribution")
+      .select("subject_id, question_count")
 
-    if (!attempts || !subjects) return
+    if (!attempts || !distribution) return
 
     const grouped: Record<string, { total: number; correct: number }> = {}
 
@@ -176,14 +186,14 @@ export default function Home() {
 
     const riskList: any[] = []
 
-    subjects.forEach((subject) => {
-      const stats = grouped[subject.id]
-      if (stats && stats.total >= 3) {
+    distribution.forEach((item) => {
+      const stats = grouped[item.subject_id]
+      if (stats && stats.total > 0) {
         const performance = stats.correct / stats.total
-        const risk = Number(subject.weight) * (1 - performance)
+        const risk = item.question_count * (1 - performance)
 
         riskList.push({
-          name: subject.name,
+          subject_id: item.subject_id,
           performance: (performance * 100).toFixed(1),
           risk,
         })
@@ -194,27 +204,85 @@ export default function Home() {
     setCriticalSubjects(riskList.slice(0, 3))
   }
 
+  // 🆕 SIMULADOR ESTRATÉGICO
+  async function calculateStrategicSimulation(uid: string) {
+    const { data: exam } = await supabase
+      .from("exams")
+      .select("*")
+      .eq("name", "OAB 1ª Fase")
+      .single()
+
+    if (!exam) return
+
+    const { data: distribution } = await supabase
+      .from("exam_subject_distribution")
+      .select("subject_id, question_count")
+      .eq("exam_id", exam.id)
+
+    const { data: attempts } = await supabase
+      .from("attempts")
+      .select("subject_id, is_correct")
+      .eq("user_id", uid)
+
+    if (!distribution || !attempts) return
+
+    const grouped: Record<string, { total: number; correct: number }> = {}
+
+    attempts.forEach((a) => {
+      if (!grouped[a.subject_id]) {
+        grouped[a.subject_id] = { total: 0, correct: 0 }
+      }
+      grouped[a.subject_id].total++
+      if (a.is_correct) grouped[a.subject_id].correct++
+    })
+
+    let currentScore = 0
+
+    distribution.forEach((item) => {
+      const stats = grouped[item.subject_id]
+      if (stats && stats.total > 0) {
+        const performance = stats.correct / stats.total
+        currentScore += performance * item.question_count
+      }
+    })
+
+    const simulations: any[] = []
+
+    distribution.forEach((item) => {
+      const stats = grouped[item.subject_id]
+
+      if (stats && stats.total > 0) {
+        const currentPerformance = stats.correct / stats.total
+        const targetPerformance = 0.6
+
+        if (currentPerformance >= targetPerformance) return
+
+        const newScore =
+          currentScore -
+          currentPerformance * item.question_count +
+          targetPerformance * item.question_count
+
+        const gain = newScore - currentScore
+
+        simulations.push({
+          subject_id: item.subject_id,
+          newScore: Number(newScore.toFixed(1)),
+          gain: Number(gain.toFixed(1)),
+        })
+      }
+    })
+
+    simulations.sort((a, b) => b.gain - a.gain)
+    setStrategicSimulations(simulations.slice(0, 3))
+  }
+
   async function calculateApprovalChance(uid: string) {
-    if (!ipo) {
+    if (!projectedScore) {
       setApprovalChance(null)
       return
     }
 
-    const { data: sessions } = await supabase
-      .from("exam_sessions")
-      .select("id")
-      .eq("user_id", uid)
-
-    const count = sessions?.length || 0
-
-    let confidenceFactor = 0.85
-    if (count === 1) confidenceFactor = 0.95
-    if (count >= 2) confidenceFactor = 1.05
-
-    let chance = ipo * confidenceFactor
-    if (chance > 95) chance = 95
-    if (chance < 5) chance = 5
-
+    const chance = (projectedScore / 80) * 100
     setApprovalChance(Number(chance.toFixed(1)))
   }
 
@@ -222,7 +290,6 @@ export default function Home() {
     if (!question || !userId) return
 
     setSelected(option)
-
     const isCorrect = option === question.correct_option
     setResult(isCorrect ? "Correto ✅" : "Errado ❌")
 
@@ -238,9 +305,10 @@ export default function Home() {
 
     await fetchStats(userId)
     await fetchStatsBySubject(userId)
-    await calculateIPO(userId)
+    await calculateProjectedScore(userId)
     await calculateCriticalSubjects(userId)
     await calculateApprovalChance(userId)
+    await calculateStrategicSimulation(userId) // 🆕
   }
 
   return (
@@ -285,17 +353,42 @@ export default function Home() {
         </div>
       )}
 
-      {ipo !== null && (
+      {projectedScore !== null && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-2">Índice de Preparação OAB</h2>
-          <p className="text-2xl font-bold">{ipo}</p>
+          <h2 className="font-bold mb-2">Nota Projetada</h2>
+          <p className="text-2xl font-bold">{projectedScore} / 80</p>
+
+          {missingPoints! > 0 ? (
+            <p className="text-red-600 font-semibold mt-2">
+              Faltam {missingPoints} pontos para aprovação.
+            </p>
+          ) : (
+            <p className="text-green-600 font-semibold mt-2">
+              Você está acima da linha de aprovação!
+            </p>
+          )}
         </div>
       )}
 
-      {approvalChance !== null && (
+      {strategicSimulations.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-2">Projeção de Aprovação</h2>
-          <p className="text-2xl font-bold">{approvalChance}%</p>
+          <h2 className="font-bold mb-3">
+            Estratégia de Ganho Rápido:
+          </h2>
+
+          {strategicSimulations.map((sim, index) => (
+            <div key={index} className="mb-2">
+              <p>
+                Se você elevar{" "}
+                <strong>
+                  {subjectsMap[sim.subject_id] || "Matéria"}
+                </strong>{" "}
+                para 60%, sua nota vai para{" "}
+                <strong>{sim.newScore}</strong>{" "}
+                (+{sim.gain} pontos)
+              </p>
+            </div>
+          ))}
         </div>
       )}
 
@@ -308,7 +401,8 @@ export default function Home() {
           {criticalSubjects.map((subject, index) => (
             <div key={index} className="mb-2">
               <p>
-                {index + 1}º {subject.name} —{" "}
+                {index + 1}º{" "}
+                {subjectsMap[subject.subject_id] || "Matéria"} —{" "}
                 <strong>{subject.performance}% de acerto</strong>
               </p>
             </div>
