@@ -20,6 +20,7 @@ export default function Home() {
   const [confidenceIndex, setConfidenceIndex] = useState<number | null>(null)
   const [approvalProbability, setApprovalProbability] = useState<number | null>(null)
   const [priorityMap, setPriorityMap] = useState<any[]>([])
+  const [improvementSimulations, setImprovementSimulations] = useState<any[]>([])
 
   useEffect(() => {
     checkUser()
@@ -49,6 +50,7 @@ export default function Home() {
     await calculateStrategicSimulation(user.id)
     await calculateStrategicPlan(user.id)
     await calculatePriorityMap(user.id)
+    await simulateScoreImprovement(user.id)
   }
 
   function calculateApprovalProbability(score: number, confidence: number | null) {
@@ -361,6 +363,70 @@ export default function Home() {
     setPriorityMap(priorities)
   }
 
+  async function simulateScoreImprovement(uid: string) {
+    const { data: exam } = await supabase
+      .from("exams")
+      .select("id")
+      .eq("name", "OAB 1ª Fase")
+      .single()
+
+    if (!exam) return
+
+    const { data: distribution } = await supabase
+      .from("exam_subject_distribution")
+      .select("subject_id, question_count")
+      .eq("exam_id", exam.id)
+
+    const { data: attempts } = await supabase
+      .from("attempts")
+      .select("subject_id, is_correct")
+      .eq("user_id", uid)
+
+    if (!distribution || !attempts) return
+
+    const grouped: Record<string, { total: number; correct: number }> = {}
+
+    attempts.forEach((a) => {
+      if (!grouped[a.subject_id]) {
+        grouped[a.subject_id] = { total: 0, correct: 0 }
+      }
+
+      grouped[a.subject_id].total++
+      if (a.is_correct) grouped[a.subject_id].correct++
+    })
+
+    const simulations: any[] = []
+
+    distribution.forEach((item) => {
+
+      const stats = grouped[item.subject_id]
+
+      const currentPerformance =
+        stats && stats.total > 0
+          ? stats.correct / stats.total
+          : 0
+
+      const simulatedPerformance = 0.7
+
+      const currentPoints = currentPerformance * item.question_count
+      const simulatedPoints = simulatedPerformance * item.question_count
+
+      const gain = simulatedPoints - currentPoints
+
+      if (gain > 0.5) {
+        simulations.push({
+          subject_id: item.subject_id,
+          gain: gain.toFixed(1)
+        })
+      }
+
+    })
+
+    simulations.sort((a, b) => b.gain - a.gain)
+
+    setImprovementSimulations(simulations.slice(0, 5))
+  }
+
   async function handleAnswer(option: string) {
     if (!question || !userId) return
 
@@ -386,6 +452,7 @@ export default function Home() {
     await calculateStrategicPlan(userId)
     await fetchQuestion()
     await calculatePriorityMap(userId)
+    await simulateScoreImprovement(userId)
   }
 
   return (
@@ -507,6 +574,28 @@ export default function Home() {
           ))}
         </div>
       )}
+
+      {improvementSimulations.length > 0 && (
+        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+          <h2 className="font-bold mb-3">
+            Onde você pode ganhar mais pontos rapidamente:
+          </h2>
+
+          {improvementSimulations.map((sim, index) => (
+            <div key={index} className="mb-2">
+              <p>
+                Se você elevar{" "}
+                <strong>
+                  {subjectsMap[sim.subject_id] || "Matéria"}
+                </strong>{" "}
+                para 70%, pode ganhar aproximadamente{" "}
+                <strong>+{sim.gain}</strong> pontos.
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+      
       {strategicPlan.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-3">
