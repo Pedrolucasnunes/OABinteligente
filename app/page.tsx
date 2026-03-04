@@ -23,6 +23,7 @@ export default function Home() {
   const [approvalProbability, setApprovalProbability] = useState<number | null>(null)
   const [priorityMap, setPriorityMap] = useState<any[]>([])
   const [improvementSimulations, setImprovementSimulations] = useState<any[]>([])
+  const [studyScore, setStudyScore] = useState<number | null>(null)
 
   useEffect(() => {
     checkUser()
@@ -52,369 +53,386 @@ export default function Home() {
 
     const analysis = await runStudyEngine(user.id)
 
-    if (analysis) {
-      setProjectedScore(analysis.projectedScore)
-      setMissingPoints(analysis.missingPoints)
-      setCriticalSubjects(analysis.criticalSubjects)
-      setPriorityMap(analysis.priorityMap)
-      setImprovementSimulations(analysis.improvementSimulations)
-      setStrategicSimulations(analysis.strategicSimulations)
-    }
+    if (!analysis) return
 
-  }
+    setStudyScore(analysis.studyScore)
+    setProjectedScore(analysis.projectedScore)
+    setMissingPoints(analysis.missingPoints)
+    setCriticalSubjects(analysis.criticalSubjects)
+    setPriorityMap(analysis.priorityMap)
+    setImprovementSimulations(analysis.improvementSimulations)
+    setStrategicSimulations(analysis.strategicSimulations)
 
-  function calculateApprovalProbability(score: number, confidence: number | null) {
-    if (confidence === null) return null
+}
 
-    const a = 0.35
-    const logistic = 1 / (1 + Math.exp(-a * (score - 40)))
+function calculateApprovalProbability(score: number, confidence: number | null) {
+  if (confidence === null) return null
 
-    // ajusta pela confiabilidade
-    const adjusted = logistic * (confidence / 100)
+  const a = 0.35
+  const logistic = 1 / (1 + Math.exp(-a * (score - 40)))
 
-    return Number((adjusted * 100).toFixed(1))
-  }
+  // ajusta pela confiabilidade
+  const adjusted = logistic * (confidence / 100)
 
-  async function fetchQuestion() {
-    let questions
+  return Number((adjusted * 100).toFixed(1))
+}
 
-    const useCritical = Math.random() < 0.7 && criticalSubjects.length > 0
+async function fetchQuestion() {
+  let questions
 
-    if (useCritical) {
-      const criticalIds = criticalSubjects.map((s) => s.subject_id)
+  const useCritical = Math.random() < 0.7 && criticalSubjects.length > 0
 
-      const { data } = await supabase
-        .from("questions")
-        .select("*")
-        .in("subject_id", criticalIds)
+  if (useCritical) {
+    const criticalIds = criticalSubjects.map((s) => s.subject_id)
 
-      questions = data
-    } else {
-      const { data } = await supabase
-        .from("questions")
-        .select("*")
-
-      questions = data
-    }
-
-    if (questions && questions.length > 0) {
-      const randomIndex = Math.floor(Math.random() * questions.length)
-
-      setQuestion(questions[randomIndex])
-      setSelected(null)
-      setResult(null)
-    }
-  }
-
-  async function fetchStats(uid: string) {
     const { data } = await supabase
-      .from("attempts")
+      .from("questions")
       .select("*")
-      .eq("user_id", uid)
+      .in("subject_id", criticalIds)
 
-    if (data) {
-      const total = data.length
-      const correct = data.filter((a) => a.is_correct).length
-      const percentage =
-        total > 0 ? ((correct / total) * 100).toFixed(1) : "0"
-
-      setStats({
-        total,
-        correct,
-        wrong: total - correct,
-        percentage,
-      })
-      const confidence = calculateConfidence(total)
-      setConfidenceIndex(confidence)
-    }
-  }
-
-  async function fetchSubjects() {
-    const { data } = await supabase.from("subjects").select("*")
-
-    if (data) {
-      const map: Record<string, string> = {}
-      data.forEach((subject) => {
-        map[subject.id] = subject.name
-      })
-      setSubjectsMap(map)
-    }
-  }
-
-  async function fetchStatsBySubject(uid: string) {
+    questions = data
+  } else {
     const { data } = await supabase
-      .from("attempts")
-      .select("subject_id, is_correct")
-      .eq("user_id", uid)
+      .from("questions")
+      .select("*")
 
-    if (!data) return
+    questions = data
+  }
 
-    const grouped: Record<string, { total: number; correct: number }> = {}
+  if (questions && questions.length > 0) {
+    const randomIndex = Math.floor(Math.random() * questions.length)
 
-    data.forEach((item) => {
-      if (!grouped[item.subject_id]) {
-        grouped[item.subject_id] = { total: 0, correct: 0 }
-      }
-      grouped[item.subject_id].total++
-      if (item.is_correct) grouped[item.subject_id].correct++
+    setQuestion(questions[randomIndex])
+    setSelected(null)
+    setResult(null)
+  }
+}
+
+async function fetchStats(uid: string) {
+  const { data } = await supabase
+    .from("attempts")
+    .select("*")
+    .eq("user_id", uid)
+
+  if (data) {
+    const total = data.length
+    const correct = data.filter((a) => a.is_correct).length
+    const percentage =
+      total > 0 ? ((correct / total) * 100).toFixed(1) : "0"
+
+    setStats({
+      total,
+      correct,
+      wrong: total - correct,
+      percentage,
     })
-
-    const result = Object.entries(grouped).map(([subject_id, values]) => ({
-      subject_id,
-      percentage: ((values.correct / values.total) * 100).toFixed(1),
-    }))
-
-    setStatsBySubject(result)
+    const confidence = calculateConfidence(total)
+    setConfidenceIndex(confidence)
   }
+}
 
-  async function handleAnswer(option: string) {
+async function fetchSubjects() {
+  const { data } = await supabase.from("subjects").select("*")
 
-    if (!question || !userId) return
+  if (data) {
+    const map: Record<string, string> = {}
+    data.forEach((subject) => {
+      map[subject.id] = subject.name
+    })
+    setSubjectsMap(map)
+  }
+}
 
-    setSelected(option)
+async function fetchStatsBySubject(uid: string) {
+  const { data } = await supabase
+    .from("attempts")
+    .select("subject_id, is_correct")
+    .eq("user_id", uid)
 
-    const isCorrect = option === question.correct_option
+  if (!data) return
 
-    setResult(isCorrect ? "Correto ✅" : "Errado ❌")
+  const grouped: Record<string, { total: number; correct: number }> = {}
 
-    await supabase.from("attempts").insert([
-      {
-        user_id: userId,
-        question_id: question.id,
-        selected_option: option,
-        is_correct: isCorrect,
-        subject_id: question.subject_id,
-      },
-    ])
-
-    await fetchStats(userId)
-    await fetchStatsBySubject(userId)
-
-    const analysis = await runStudyEngine(userId)
-
-    if (analysis) {
-      setProjectedScore(analysis.projectedScore)
-      setMissingPoints(analysis.missingPoints)
-      setCriticalSubjects(analysis.criticalSubjects)
-      setPriorityMap(analysis.priorityMap)
-      setImprovementSimulations(analysis.improvementSimulations)
-      setStrategicSimulations(analysis.strategicSimulations)
+  data.forEach((item) => {
+    if (!grouped[item.subject_id]) {
+      grouped[item.subject_id] = { total: 0, correct: 0 }
     }
+    grouped[item.subject_id].total++
+    if (item.is_correct) grouped[item.subject_id].correct++
+  })
 
-    await fetchQuestion()
+  const result = Object.entries(grouped).map(([subject_id, values]) => ({
+    subject_id,
+    percentage: ((values.correct / values.total) * 100).toFixed(1),
+  }))
 
-  }
+  setStatsBySubject(result)
+}
 
-  return (
-    <main className="min-h-screen bg-gray-100 p-10">
-      <h1 className="text-3xl font-bold mb-6 text-black">
-        OABinteligente
-      </h1>
+async function handleAnswer(option: string) {
 
-      <Link href="/simulado">
-        <button className="mb-6 bg-black text-white px-4 py-2 rounded">
-          Iniciar Simulado Oficial
-        </button>
-      </Link>
+  if (!question || !userId) return
 
-      {/* QUESTÕES */}
-      {question && (
-        <div className="mt-6 bg-white p-6 rounded shadow max-w-xl text-black">
-          <p className="font-semibold mb-4">{question.statement}</p>
+  setSelected(option)
 
-          <div className="space-y-3">
-            {["A", "B", "C", "D", "E"].map((letter) => (
-              <button
-                key={letter}
-                onClick={() => handleAnswer(letter)}
-                disabled={selected !== null}
-                className="w-full text-left p-3 border rounded hover:bg-gray-100 disabled:bg-gray-200"
-              >
-                {letter}) {question[`option_${letter.toLowerCase()}`]}
-              </button>
-            ))}
-          </div>
+  const isCorrect = option === question.correct_option
 
-          {result && <div className="mt-4 font-bold">{result}</div>}
+  setResult(isCorrect ? "Correto ✅" : "Errado ❌")
 
-          {result && (
+  await supabase.from("attempts").insert([
+    {
+      user_id: userId,
+      question_id: question.id,
+      selected_option: option,
+      is_correct: isCorrect,
+      subject_id: question.subject_id,
+    },
+  ])
+
+  await fetchStats(userId)
+  await fetchStatsBySubject(userId)
+
+  const analysis = await runStudyEngine(userId)
+
+  if (!analysis) return
+
+  setStudyScore(analysis.studyScore)
+  setProjectedScore(analysis.projectedScore)
+  setMissingPoints(analysis.missingPoints)
+  setCriticalSubjects(analysis.criticalSubjects)
+  setPriorityMap(analysis.priorityMap)
+  setImprovementSimulations(analysis.improvementSimulations)
+  setStrategicSimulations(analysis.strategicSimulations)
+
+  await fetchQuestion()
+
+}
+
+return (
+  <main className="min-h-screen bg-gray-100 p-10">
+    <h1 className="text-3xl font-bold mb-6 text-black">
+      OABinteligente
+    </h1>
+
+    <Link href="/simulado">
+      <button className="mb-6 bg-black text-white px-4 py-2 rounded">
+        Iniciar Simulado Oficial
+      </button>
+    </Link>
+
+    {/* QUESTÕES */}
+    {question && (
+      <div className="mt-6 bg-white p-6 rounded shadow max-w-xl text-black">
+        <p className="font-semibold mb-4">{question.statement}</p>
+
+        <div className="space-y-3">
+          {["A", "B", "C", "D", "E"].map((letter) => (
             <button
-              onClick={fetchQuestion}
-              className="mt-4 bg-black text-white px-4 py-2 rounded"
+              key={letter}
+              onClick={() => handleAnswer(letter)}
+              disabled={selected !== null}
+              className="w-full text-left p-3 border rounded hover:bg-gray-100 disabled:bg-gray-200"
             >
-              Próxima questão
+              {letter}) {question[`option_${letter.toLowerCase()}`]}
             </button>
-          )}
+          ))}
         </div>
-      )}
 
-      {/* NOTA PROJETADA */}
-      {approvalProbability !== null && (
-        <div className="mt-4">
-          <p className="text-lg font-semibold text-purple-700">
-            Probabilidade Real de Aprovação: {approvalProbability}%
+        {result && <div className="mt-4 font-bold">{result}</div>}
+
+        {result && (
+          <button
+            onClick={fetchQuestion}
+            className="mt-4 bg-black text-white px-4 py-2 rounded"
+          >
+            Próxima questão
+          </button>
+        )}
+      </div>
+    )}
+
+    {/* NOTA PROJETADA */}
+    {studyScore !== null && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-2">Índice de Preparação</h2>
+
+        <p className="text-3xl font-bold text-blue-600">
+          {studyScore}%
+        </p>
+
+        <p className="text-sm mt-2 text-gray-600">
+          Este índice mede o quanto seu desempenho atual está alinhado
+          com a distribuição real da prova da OAB.
+        </p>
+      </div>
+    )}
+
+    {approvalProbability !== null && (
+      <div className="mt-4">
+        <p className="text-lg font-semibold text-purple-700">
+          Probabilidade Real de Aprovação: {approvalProbability}%
+        </p>
+      </div>
+    )}
+
+    {projectedScore !== null && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-2">Nota Projetada</h2>
+        <p className="text-2xl font-bold">{projectedScore} / 80</p>
+
+        {missingPoints! > 0 ? (
+          <p className="text-red-600 font-semibold mt-2">
+            Faltam {missingPoints} pontos para aprovação.
           </p>
-        </div>
-      )}
+        ) : (
+          <p className="text-green-600 font-semibold mt-2">
+            Você está acima da linha de aprovação!
+          </p>
+        )}
+      </div>
+    )}
 
-      {projectedScore !== null && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-2">Nota Projetada</h2>
-          <p className="text-2xl font-bold">{projectedScore} / 80</p>
+    {/* ESTRATÉGIA DE GANHO RÁPIDO */}
+    {strategicSimulations.length > 0 && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-3">Estratégia de Ganho Rápido:</h2>
 
-          {missingPoints! > 0 ? (
-            <p className="text-red-600 font-semibold mt-2">
-              Faltam {missingPoints} pontos para aprovação.
+        {strategicSimulations.map((sim, index) => (
+          <div key={index} className="mb-2">
+            <p>
+              Se você elevar{" "}
+              <strong>
+                {subjectsMap[sim.subject_id] || "Matéria"}
+              </strong>{" "}
+              para 60%, pode ganhar aproximadamente{" "}
+              <strong>+{sim.gain}</strong> pontos.
             </p>
-          ) : (
-            <p className="text-green-600 font-semibold mt-2">
-              Você está acima da linha de aprovação!
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* PLANO ESTRATÉGICO AUTOMÁTICO */}
+    {priorityMap.length > 0 && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-3">Mapa de Prioridade de Estudo:</h2>
+
+        {priorityMap.map((item, index) => (
+          <div key={index} className="mb-2">
+            <p>
+              <strong>
+                {subjectsMap[item.subject_id] || "Matéria"}
+              </strong>{" "}
+              — {item.performance}% de acerto
+              {" "}({item.weight} questões)
+              {" "}
+              <span
+                className={
+                  item.color === "red"
+                    ? "text-red-600 font-bold"
+                    : item.color === "yellow"
+                      ? "text-yellow-600 font-bold"
+                      : "text-green-600 font-bold"
+                }
+              >
+                {item.status}
+              </span>
             </p>
-          )}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
+    )}
 
-      {/* ESTRATÉGIA DE GANHO RÁPIDO */}
-      {strategicSimulations.length > 0 && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-3">Estratégia de Ganho Rápido:</h2>
+    {improvementSimulations.length > 0 && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-3">
+          Onde você pode ganhar mais pontos rapidamente:
+        </h2>
 
-          {strategicSimulations.map((sim, index) => (
-            <div key={index} className="mb-2">
-              <p>
-                Se você elevar{" "}
-                <strong>
-                  {subjectsMap[sim.subject_id] || "Matéria"}
-                </strong>{" "}
-                para 60%, pode ganhar aproximadamente{" "}
-                <strong>+{sim.gain}</strong> pontos.
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* PLANO ESTRATÉGICO AUTOMÁTICO */}
-      {priorityMap.length > 0 && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-3">Mapa de Prioridade de Estudo:</h2>
-
-          {priorityMap.map((item, index) => (
-            <div key={index} className="mb-2">
-              <p>
-                <strong>
-                  {subjectsMap[item.subject_id] || "Matéria"}
-                </strong>{" "}
-                — {item.performance}% de acerto
-                {" "}({item.weight} questões)
-                {" "}
-                <span
-                  className={
-                    item.color === "red"
-                      ? "text-red-600 font-bold"
-                      : item.color === "yellow"
-                        ? "text-yellow-600 font-bold"
-                        : "text-green-600 font-bold"
-                  }
-                >
-                  {item.status}
-                </span>
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {improvementSimulations.length > 0 && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-3">
-            Onde você pode ganhar mais pontos rapidamente:
-          </h2>
-
-          {improvementSimulations.map((sim, index) => (
-            <div key={index} className="mb-2">
-              <p>
-                Se você elevar{" "}
-                <strong>
-                  {subjectsMap[sim.subject_id] || "Matéria"}
-                </strong>{" "}
-                para 70%, pode ganhar aproximadamente{" "}
-                <strong>+{sim.gain}</strong> pontos.
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {strategicPlan.length > 0 && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-3">
-            Plano Estratégico para bater 40 pontos:
-          </h2>
-
-          {strategicPlan.map((plan, index) => (
-            <div key={index} className="mb-2">
-              <p>
-                Priorize{" "}
-                <strong>
-                  {subjectsMap[plan.subject_id] || "Matéria"}
-                </strong>{" "}
-                — impacto estimado de {plan.impact} pontos.
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* MATÉRIAS CRÍTICAS */}
-      {criticalSubjects.length > 0 && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-3">
-            Matérias que mais impactam sua aprovação:
-          </h2>
-
-          {criticalSubjects.map((subject, index) => (
-            <div key={index} className="mb-2">
-              <p>
-                {index + 1}º{" "}
-                {subjectsMap[subject.subject_id] || "Matéria"} —{" "}
-                <strong>{subject.performance}% de acerto</strong>
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* DESEMPENHO GERAL */}
-      {stats && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-2">Seu desempenho geral:</h2>
-          <p>Total respondidas: {stats.total}</p>
-          <p>Acertos: {stats.correct}</p>
-          <p>Erros: {stats.wrong}</p>
-          <p>Taxa de acerto: {stats.percentage}%</p>
-          {confidenceIndex !== null && (
-            <p className="mt-2 text-blue-600 font-semibold">
-              Índice de Confiabilidade Estatística: {confidenceIndex}%
+        {improvementSimulations.map((sim, index) => (
+          <div key={index} className="mb-2">
+            <p>
+              Se você elevar{" "}
+              <strong>
+                {subjectsMap[sim.subject_id] || "Matéria"}
+              </strong>{" "}
+              para 70%, pode ganhar aproximadamente{" "}
+              <strong>+{sim.gain}</strong> pontos.
             </p>
-          )}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
+    )}
 
-      {/* DESEMPENHO POR MATÉRIA */}
-      {statsBySubject.length > 0 && (
-        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
-          <h2 className="font-bold mb-2">Desempenho por Matéria:</h2>
-          {statsBySubject.map((stat) => (
-            <div key={stat.subject_id} className="mb-2">
-              <p>
-                {subjectsMap[stat.subject_id] || "Matéria"} →{" "}
-                <strong>{stat.percentage}%</strong>
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </main>
-  )
+    {strategicPlan.length > 0 && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-3">
+          Plano Estratégico para bater 40 pontos:
+        </h2>
+
+        {strategicPlan.map((plan, index) => (
+          <div key={index} className="mb-2">
+            <p>
+              Priorize{" "}
+              <strong>
+                {subjectsMap[plan.subject_id] || "Matéria"}
+              </strong>{" "}
+              — impacto estimado de {plan.impact} pontos.
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* MATÉRIAS CRÍTICAS */}
+    {criticalSubjects.length > 0 && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-3">
+          Matérias que mais impactam sua aprovação:
+        </h2>
+
+        {criticalSubjects.map((subject, index) => (
+          <div key={index} className="mb-2">
+            <p>
+              {index + 1}º{" "}
+              {subjectsMap[subject.subject_id] || "Matéria"} —{" "}
+              <strong>{subject.performance}% de acerto</strong>
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* DESEMPENHO GERAL */}
+    {stats && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-2">Seu desempenho geral:</h2>
+        <p>Total respondidas: {stats.total}</p>
+        <p>Acertos: {stats.correct}</p>
+        <p>Erros: {stats.wrong}</p>
+        <p>Taxa de acerto: {stats.percentage}%</p>
+        {confidenceIndex !== null && (
+          <p className="mt-2 text-blue-600 font-semibold">
+            Índice de Confiabilidade Estatística: {confidenceIndex}%
+          </p>
+        )}
+      </div>
+    )}
+
+    {/* DESEMPENHO POR MATÉRIA */}
+    {statsBySubject.length > 0 && (
+      <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+        <h2 className="font-bold mb-2">Desempenho por Matéria:</h2>
+        {statsBySubject.map((stat) => (
+          <div key={stat.subject_id} className="mb-2">
+            <p>
+              {subjectsMap[stat.subject_id] || "Matéria"} →{" "}
+              <strong>{stat.percentage}%</strong>
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+  </main>
+)
 }
