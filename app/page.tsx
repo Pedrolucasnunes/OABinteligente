@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import Link from "next/link"
 
+import { runStudyEngine } from "../lib/engine/studyEngine"
+
 export default function Home() {
   const [question, setQuestion] = useState<any>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -32,6 +34,7 @@ export default function Home() {
   }
 
   async function checkUser() {
+
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -43,14 +46,21 @@ export default function Home() {
 
     await fetchSubjects()
     await fetchQuestion()
+
     await fetchStats(user.id)
     await fetchStatsBySubject(user.id)
-    await calculateProjectedScore(user.id)
-    await calculateCriticalSubjects(user.id)
-    await calculateStrategicSimulation(user.id)
-    await calculateStrategicPlan(user.id)
-    await calculatePriorityMap(user.id)
-    await simulateScoreImprovement(user.id)
+
+    const analysis = await runStudyEngine(user.id)
+
+    if (analysis) {
+      setProjectedScore(analysis.projectedScore)
+      setMissingPoints(analysis.missingPoints)
+      setCriticalSubjects(analysis.criticalSubjects)
+      setPriorityMap(analysis.priorityMap)
+      setImprovementSimulations(analysis.improvementSimulations)
+      setStrategicSimulations(analysis.strategicSimulations)
+    }
+
   }
 
   function calculateApprovalProbability(score: number, confidence: number | null) {
@@ -157,281 +167,14 @@ export default function Home() {
     setStatsBySubject(result)
   }
 
-  async function calculateProjectedScore(uid: string) {
-    const { data: exam } = await supabase
-      .from("exams")
-      .select("*")
-      .eq("name", "OAB 1ª Fase")
-      .single()
-
-    if (!exam) return
-
-    const { data: distribution } = await supabase
-      .from("exam_subject_distribution")
-      .select("subject_id, question_count")
-      .eq("exam_id", exam.id)
-
-    const { data: attempts } = await supabase
-      .from("attempts")
-      .select("subject_id, is_correct")
-      .eq("user_id", uid)
-
-    if (!distribution || !attempts) return
-
-    const grouped: Record<string, { total: number; correct: number }> = {}
-
-    attempts.forEach((a) => {
-      if (!grouped[a.subject_id]) {
-        grouped[a.subject_id] = { total: 0, correct: 0 }
-      }
-      grouped[a.subject_id].total++
-      if (a.is_correct) grouped[a.subject_id].correct++
-    })
-
-    let projected = 0
-
-    distribution.forEach((item) => {
-      const stats = grouped[item.subject_id]
-      if (stats && stats.total > 0) {
-        const performance = stats.correct / stats.total
-        projected += performance * item.question_count
-      }
-    })
-
-    const rounded = Number(projected.toFixed(1))
-    const missing = exam.passing_score - rounded
-
-    setProjectedScore(rounded)
-    const probability = calculateApprovalProbability(rounded, confidenceIndex)
-    setApprovalProbability(probability)
-    setMissingPoints(missing > 0 ? Number(missing.toFixed(1)) : 0)
-  }
-
-  // MATÉRIAS CRÍTICAS
-  async function calculateCriticalSubjects(uid: string) {
-    const { data: exam } = await supabase
-      .from("exams")
-      .select("id")
-      .eq("name", "OAB 1ª Fase")
-      .single()
-
-    if (!exam) return
-
-    const { data: distribution } = await supabase
-      .from("exam_subject_distribution")
-      .select("subject_id, question_count")
-      .eq("exam_id", exam.id)
-
-    const { data: attempts } = await supabase
-      .from("attempts")
-      .select("subject_id, is_correct")
-      .eq("user_id", uid)
-
-    if (!distribution || !attempts) return
-
-    const grouped: Record<string, { total: number; correct: number }> = {}
-
-    attempts.forEach((a) => {
-      if (!grouped[a.subject_id]) {
-        grouped[a.subject_id] = { total: 0, correct: 0 }
-      }
-      grouped[a.subject_id].total++
-      if (a.is_correct) grouped[a.subject_id].correct++
-    })
-
-    const riskList: any[] = []
-
-    distribution.forEach((item) => {
-      const stats = grouped[item.subject_id]
-      if (stats && stats.total > 0) {
-        const performance = stats.correct / stats.total
-        const errorRate = 1 - performance
-        const impact = item.question_count * errorRate
-
-        riskList.push({
-          subject_id: item.subject_id,
-          performance: (performance * 100).toFixed(1),
-          impact,
-        })
-      }
-    })
-
-    riskList.sort((a, b) => b.impact - a.impact)
-    setCriticalSubjects(riskList.slice(0, 3))
-  }
-
-  // ESTRATÉGIA DE GANHO RÁPIDO
-  async function calculateStrategicSimulation(uid: string) {
-    if (!projectedScore) return
-
-    const simulations: any[] = []
-
-    criticalSubjects.forEach((subject) => {
-      const gain = subject.impact * 0.4
-
-      simulations.push({
-        subject_id: subject.subject_id,
-        gain: gain.toFixed(1),
-      })
-    })
-
-    setStrategicSimulations(simulations.slice(0, 3))
-  }
-
-  // PLANO AUTOMÁTICO PARA BATER 40
-  async function calculateStrategicPlan(uid: string) {
-    if (!projectedScore) return
-
-    if (projectedScore >= 40) {
-      setStrategicPlan([])
-      return
-    }
-
-    const needed = 40 - projectedScore
-
-    const plans = criticalSubjects.map((subject) => ({
-      subject_id: subject.subject_id,
-      target: "Elevar desempenho",
-      impact: subject.impact?.toFixed(1) ?? "0"
-    }))
-
-    setStrategicPlan(plans.slice(0, 3))
-  }
-
-  async function calculatePriorityMap(uid: string) {
-    const { data: exam } = await supabase
-      .from("exams")
-      .select("id")
-      .eq("name", "OAB 1ª Fase")
-      .single()
-
-    if (!exam) return
-
-    const { data: distribution } = await supabase
-      .from("exam_subject_distribution")
-      .select("subject_id, question_count")
-      .eq("exam_id", exam.id)
-
-    const { data: attempts } = await supabase
-      .from("attempts")
-      .select("subject_id, is_correct")
-      .eq("user_id", uid)
-
-    if (!distribution || !attempts) return
-
-    const grouped: Record<string, { total: number; correct: number }> = {}
-
-    attempts.forEach((a) => {
-      if (!grouped[a.subject_id]) {
-        grouped[a.subject_id] = { total: 0, correct: 0 }
-      }
-
-      grouped[a.subject_id].total++
-      if (a.is_correct) grouped[a.subject_id].correct++
-    })
-
-    const priorities = distribution.map((item) => {
-      const stats = grouped[item.subject_id]
-
-      const performance =
-        stats && stats.total > 0
-          ? (stats.correct / stats.total) * 100
-          : 0
-
-      let status = "Seguro"
-      let color = "green"
-
-      if (performance < 40) {
-        status = "Crítico"
-        color = "red"
-      } else if (performance < 65) {
-        status = "Médio"
-        color = "yellow"
-      }
-
-      return {
-        subject_id: item.subject_id,
-        performance: performance.toFixed(1),
-        weight: item.question_count,
-        status,
-        color,
-      }
-    })
-
-    priorities.sort((a, b) => b.weight - a.weight)
-
-    setPriorityMap(priorities)
-  }
-
-  async function simulateScoreImprovement(uid: string) {
-    const { data: exam } = await supabase
-      .from("exams")
-      .select("id")
-      .eq("name", "OAB 1ª Fase")
-      .single()
-
-    if (!exam) return
-
-    const { data: distribution } = await supabase
-      .from("exam_subject_distribution")
-      .select("subject_id, question_count")
-      .eq("exam_id", exam.id)
-
-    const { data: attempts } = await supabase
-      .from("attempts")
-      .select("subject_id, is_correct")
-      .eq("user_id", uid)
-
-    if (!distribution || !attempts) return
-
-    const grouped: Record<string, { total: number; correct: number }> = {}
-
-    attempts.forEach((a) => {
-      if (!grouped[a.subject_id]) {
-        grouped[a.subject_id] = { total: 0, correct: 0 }
-      }
-
-      grouped[a.subject_id].total++
-      if (a.is_correct) grouped[a.subject_id].correct++
-    })
-
-    const simulations: any[] = []
-
-    distribution.forEach((item) => {
-
-      const stats = grouped[item.subject_id]
-
-      const currentPerformance =
-        stats && stats.total > 0
-          ? stats.correct / stats.total
-          : 0
-
-      const simulatedPerformance = 0.7
-
-      const currentPoints = currentPerformance * item.question_count
-      const simulatedPoints = simulatedPerformance * item.question_count
-
-      const gain = simulatedPoints - currentPoints
-
-      if (gain > 0.5) {
-        simulations.push({
-          subject_id: item.subject_id,
-          gain: gain.toFixed(1)
-        })
-      }
-
-    })
-
-    simulations.sort((a, b) => b.gain - a.gain)
-
-    setImprovementSimulations(simulations.slice(0, 5))
-  }
-
   async function handleAnswer(option: string) {
+
     if (!question || !userId) return
 
     setSelected(option)
+
     const isCorrect = option === question.correct_option
+
     setResult(isCorrect ? "Correto ✅" : "Errado ❌")
 
     await supabase.from("attempts").insert([
@@ -446,13 +189,20 @@ export default function Home() {
 
     await fetchStats(userId)
     await fetchStatsBySubject(userId)
-    await calculateProjectedScore(userId)
-    await calculateCriticalSubjects(userId)
-    await calculateStrategicSimulation(userId)
-    await calculateStrategicPlan(userId)
+
+    const analysis = await runStudyEngine(userId)
+
+    if (analysis) {
+      setProjectedScore(analysis.projectedScore)
+      setMissingPoints(analysis.missingPoints)
+      setCriticalSubjects(analysis.criticalSubjects)
+      setPriorityMap(analysis.priorityMap)
+      setImprovementSimulations(analysis.improvementSimulations)
+      setStrategicSimulations(analysis.strategicSimulations)
+    }
+
     await fetchQuestion()
-    await calculatePriorityMap(userId)
-    await simulateScoreImprovement(userId)
+
   }
 
   return (
@@ -595,7 +345,7 @@ export default function Home() {
           ))}
         </div>
       )}
-      
+
       {strategicPlan.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-3">
