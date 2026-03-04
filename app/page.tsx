@@ -19,6 +19,7 @@ export default function Home() {
   const [strategicPlan, setStrategicPlan] = useState<any[]>([])
   const [confidenceIndex, setConfidenceIndex] = useState<number | null>(null)
   const [approvalProbability, setApprovalProbability] = useState<number | null>(null)
+  const [priorityMap, setPriorityMap] = useState<any[]>([])
 
   useEffect(() => {
     checkUser()
@@ -47,6 +48,7 @@ export default function Home() {
     await calculateCriticalSubjects(user.id)
     await calculateStrategicSimulation(user.id)
     await calculateStrategicPlan(user.id)
+    await calculatePriorityMap(user.id)
   }
 
   function calculateApprovalProbability(score: number, confidence: number | null) {
@@ -294,6 +296,71 @@ export default function Home() {
     setStrategicPlan(plans.slice(0, 3))
   }
 
+  async function calculatePriorityMap(uid: string) {
+    const { data: exam } = await supabase
+      .from("exams")
+      .select("id")
+      .eq("name", "OAB 1ª Fase")
+      .single()
+
+    if (!exam) return
+
+    const { data: distribution } = await supabase
+      .from("exam_subject_distribution")
+      .select("subject_id, question_count")
+      .eq("exam_id", exam.id)
+
+    const { data: attempts } = await supabase
+      .from("attempts")
+      .select("subject_id, is_correct")
+      .eq("user_id", uid)
+
+    if (!distribution || !attempts) return
+
+    const grouped: Record<string, { total: number; correct: number }> = {}
+
+    attempts.forEach((a) => {
+      if (!grouped[a.subject_id]) {
+        grouped[a.subject_id] = { total: 0, correct: 0 }
+      }
+
+      grouped[a.subject_id].total++
+      if (a.is_correct) grouped[a.subject_id].correct++
+    })
+
+    const priorities = distribution.map((item) => {
+      const stats = grouped[item.subject_id]
+
+      const performance =
+        stats && stats.total > 0
+          ? (stats.correct / stats.total) * 100
+          : 0
+
+      let status = "Seguro"
+      let color = "green"
+
+      if (performance < 40) {
+        status = "Crítico"
+        color = "red"
+      } else if (performance < 65) {
+        status = "Médio"
+        color = "yellow"
+      }
+
+      return {
+        subject_id: item.subject_id,
+        performance: performance.toFixed(1),
+        weight: item.question_count,
+        status,
+        color,
+      }
+    })
+
+    priorities.sort((a, b) => b.weight - a.weight)
+
+    setPriorityMap(priorities)
+  }
+
   async function handleAnswer(option: string) {
     if (!question || !userId) return
 
@@ -318,6 +385,7 @@ export default function Home() {
     await calculateStrategicSimulation(userId)
     await calculateStrategicPlan(userId)
     await fetchQuestion()
+    await calculatePriorityMap(userId)
   }
 
   return (
@@ -410,6 +478,35 @@ export default function Home() {
       )}
 
       {/* PLANO ESTRATÉGICO AUTOMÁTICO */}
+      {priorityMap.length > 0 && (
+        <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
+          <h2 className="font-bold mb-3">Mapa de Prioridade de Estudo:</h2>
+
+          {priorityMap.map((item, index) => (
+            <div key={index} className="mb-2">
+              <p>
+                <strong>
+                  {subjectsMap[item.subject_id] || "Matéria"}
+                </strong>{" "}
+                — {item.performance}% de acerto
+                {" "}({item.weight} questões)
+                {" "}
+                <span
+                  className={
+                    item.color === "red"
+                      ? "text-red-600 font-bold"
+                      : item.color === "yellow"
+                        ? "text-yellow-600 font-bold"
+                        : "text-green-600 font-bold"
+                  }
+                >
+                  {item.status}
+                </span>
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
       {strategicPlan.length > 0 && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-3">
