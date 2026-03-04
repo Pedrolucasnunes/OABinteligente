@@ -62,35 +62,35 @@ export default function Home() {
   }
 
   async function fetchQuestion() {
-  let questions
+    let questions
 
-  const useCritical = Math.random() < 0.7 && criticalSubjects.length > 0
+    const useCritical = Math.random() < 0.7 && criticalSubjects.length > 0
 
-  if (useCritical) {
-    const criticalIds = criticalSubjects.map((s) => s.subject_id)
+    if (useCritical) {
+      const criticalIds = criticalSubjects.map((s) => s.subject_id)
 
-    const { data } = await supabase
-      .from("questions")
-      .select("*")
-      .in("subject_id", criticalIds)
+      const { data } = await supabase
+        .from("questions")
+        .select("*")
+        .in("subject_id", criticalIds)
 
-    questions = data
-  } else {
-    const { data } = await supabase
-      .from("questions")
-      .select("*")
+      questions = data
+    } else {
+      const { data } = await supabase
+        .from("questions")
+        .select("*")
 
-    questions = data
+      questions = data
+    }
+
+    if (questions && questions.length > 0) {
+      const randomIndex = Math.floor(Math.random() * questions.length)
+
+      setQuestion(questions[randomIndex])
+      setSelected(null)
+      setResult(null)
+    }
   }
-
-  if (questions && questions.length > 0) {
-    const randomIndex = Math.floor(Math.random() * questions.length)
-
-    setQuestion(questions[randomIndex])
-    setSelected(null)
-    setResult(null)
-  }
-}
 
   async function fetchStats(uid: string) {
     const { data } = await supabase
@@ -241,17 +241,18 @@ export default function Home() {
       const stats = grouped[item.subject_id]
       if (stats && stats.total > 0) {
         const performance = stats.correct / stats.total
-        const risk = item.question_count * (1 - performance)
+        const errorRate = 1 - performance
+        const impact = item.question_count * errorRate
 
         riskList.push({
           subject_id: item.subject_id,
           performance: (performance * 100).toFixed(1),
-          risk,
+          impact,
         })
       }
     })
 
-    riskList.sort((a, b) => b.risk - a.risk)
+    riskList.sort((a, b) => b.impact - a.impact)
     setCriticalSubjects(riskList.slice(0, 3))
   }
 
@@ -262,7 +263,7 @@ export default function Home() {
     const simulations: any[] = []
 
     criticalSubjects.forEach((subject) => {
-      const gain = subject.risk * 0.4
+      const gain = subject.impact * 0.4
 
       simulations.push({
         subject_id: subject.subject_id,
@@ -287,7 +288,7 @@ export default function Home() {
     const plans = criticalSubjects.map((subject) => ({
       subject_id: subject.subject_id,
       target: "Elevar desempenho",
-      impact: subject.risk.toFixed(1),
+      impact: subject.impact?.toFixed(1) ?? "0"
     }))
 
     setStrategicPlan(plans.slice(0, 3))
@@ -370,7 +371,7 @@ export default function Home() {
           </p>
         </div>
       )}
-      
+
       {projectedScore !== null && (
         <div className="mt-6 bg-white p-4 rounded shadow max-w-xl text-black">
           <h2 className="font-bold mb-2">Nota Projetada</h2>
