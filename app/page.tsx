@@ -62,15 +62,35 @@ export default function Home() {
   }
 
   async function fetchQuestion() {
-    const { data } = await supabase.from("questions").select("*")
+  let questions
 
-    if (data && data.length > 0) {
-      const randomIndex = Math.floor(Math.random() * data.length)
-      setQuestion(data[randomIndex])
-      setSelected(null)
-      setResult(null)
-    }
+  const useCritical = Math.random() < 0.7 && criticalSubjects.length > 0
+
+  if (useCritical) {
+    const criticalIds = criticalSubjects.map((s) => s.subject_id)
+
+    const { data } = await supabase
+      .from("questions")
+      .select("*")
+      .in("subject_id", criticalIds)
+
+    questions = data
+  } else {
+    const { data } = await supabase
+      .from("questions")
+      .select("*")
+
+    questions = data
   }
+
+  if (questions && questions.length > 0) {
+    const randomIndex = Math.floor(Math.random() * questions.length)
+
+    setQuestion(questions[randomIndex])
+    setSelected(null)
+    setResult(null)
+  }
+}
 
   async function fetchStats(uid: string) {
     const { data } = await supabase
@@ -296,6 +316,7 @@ export default function Home() {
     await calculateCriticalSubjects(userId)
     await calculateStrategicSimulation(userId)
     await calculateStrategicPlan(userId)
+    await fetchQuestion()
   }
 
   return (
