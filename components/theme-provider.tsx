@@ -7,5 +7,14 @@ import {
 } from 'next-themes'
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>
+  return (
+    <NextThemesProvider 
+      {...props} 
+      attribute="class" 
+      defaultTheme="light" // Garante que comece no modo claro
+      enableSystem={false} // Evita que o sistema do usuário force o modo escuro
+    >
+      {children}
+    </NextThemesProvider>
+  )
 }

@@ -45,74 +45,62 @@ const priorityData: SubjectRow[] = [
   { subject: "Direito Internacional", accuracy: 40, weight: 2, status: "Crítico" },
 ]
 
-const statusConfig: Record<
-  Status,
-  { className: string }
-> = {
+// Mapeamento usando as variáveis do seu globals.css
+const statusConfig: Record<Status, { className: string; barClass: string }> = {
   Crítico: {
-    className: "bg-status-critical/10 text-status-critical border-status-critical/20",
+    className: "bg-chart-3/10 text-chart-3 border-chart-3/20",
+    barClass: "bg-chart-3",
   },
   Médio: {
-    className: "bg-status-medium/10 text-status-medium border-status-medium/20",
+    className: "bg-chart-4/10 text-chart-4 border-chart-4/20",
+    barClass: "bg-chart-4",
   },
   Seguro: {
-    className: "bg-status-safe/10 text-status-safe border-status-safe/20",
+    className: "bg-chart-1/10 text-chart-1 border-chart-1/20",
+    barClass: "bg-chart-1",
   },
 }
 
 export function PriorityTable() {
   return (
-    <Card className="border-none shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-base">Mapa de Prioridades</CardTitle>
-        <CardDescription>
-          Visão completa de todas as matérias com acurácia, peso e status
+    <Card className="border border-border/40 bg-card shadow-sm">
+      <CardHeader className="px-6 py-5">
+        <CardTitle className="text-lg font-bold text-foreground/90">Mapa de Prioridades</CardTitle>
+        <CardDescription className="text-xs font-medium">
+          Visão completa das disciplinas por <span className="text-primary/80 font-semibold">relevância e acerto</span>
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 sm:px-6">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="text-muted-foreground">Matéria</TableHead>
-              <TableHead className="text-right text-muted-foreground">
-                Acurácia
-              </TableHead>
-              <TableHead className="text-center text-muted-foreground">
-                Peso (questões)
-              </TableHead>
-              <TableHead className="text-center text-muted-foreground">
-                Status
-              </TableHead>
+            <TableRow className="hover:bg-transparent border-border/50">
+              <TableHead className="text-[11px] uppercase tracking-wider font-bold text-muted-foreground/70">Matéria</TableHead>
+              <TableHead className="text-right text-[11px] uppercase tracking-wider font-bold text-muted-foreground/70">Acurácia</TableHead>
+              <TableHead className="text-center text-[11px] uppercase tracking-wider font-bold text-muted-foreground/70">Questões</TableHead>
+              <TableHead className="text-center text-[11px] uppercase tracking-wider font-bold text-muted-foreground/70">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {priorityData.map((row) => (
-              <TableRow key={row.subject}>
-                <TableCell className="font-medium text-card-foreground">
+              <TableRow key={row.subject} className="border-border/40 hover:bg-muted/30 transition-colors">
+                <TableCell className="py-4 font-semibold text-sm text-foreground/80">
                   {row.subject}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <div className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted sm:block">
+                  <div className="flex items-center justify-end gap-3">
+                    <div className="hidden h-2 w-20 overflow-hidden rounded-full bg-muted/50 sm:block">
                       <div
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          row.status === "Crítico"
-                            ? "bg-status-critical"
-                            : row.status === "Médio"
-                            ? "bg-status-medium"
-                            : "bg-status-safe"
-                        )}
+                        className={cn("h-full rounded-full transition-all duration-500", statusConfig[row.status].barClass)}
                         style={{ width: `${row.accuracy}%` }}
                       />
                     </div>
-                    <span className="text-sm font-semibold tabular-nums text-card-foreground">
+                    <span className="text-sm font-bold tabular-nums text-foreground">
                       {row.accuracy}%
                     </span>
                   </div>
                 </TableCell>
                 <TableCell className="text-center">
-                  <span className="text-sm text-muted-foreground font-mono">
+                  <span className="inline-flex items-center justify-center size-7 rounded-lg bg-muted/40 text-xs font-bold text-muted-foreground">
                     {row.weight}
                   </span>
                 </TableCell>
@@ -120,7 +108,7 @@ export function PriorityTable() {
                   <Badge
                     variant="outline"
                     className={cn(
-                      "text-xs font-medium",
+                      "px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight rounded-md",
                       statusConfig[row.status].className
                     )}
                   >
