@@ -1,11 +1,13 @@
-import { getUserAnswers } from "../repositories/analysisRepository"
-import { runStudyAnalysis } from "../engine/studyEngine"
+import { getUserAttempts } from "../repositories/attemptRepository"
+import { runStudyEngine } from "../engine/studyEngine"
 
 export async function getUserAnalysis(userId: string) {
 
-  const answers = await getUserAnswers(userId)
+  const attempts = await getUserAttempts(userId)
 
-  const analysis = runStudyAnalysis(answers)
+  if (!attempts) return null
+
+  const analysis = runStudyEngine(userId)
 
   return analysis
 }

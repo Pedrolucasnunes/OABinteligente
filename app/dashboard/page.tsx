@@ -1,5 +1,8 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
+
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { KpiCards } from "@/components/kpi-cards"
@@ -7,7 +10,46 @@ import { ChartsSection } from "@/components/charts-section"
 import { PriorityTable } from "@/components/priority-table"
 import { StrategicSection } from "@/components/strategic-section"
 
+import { getUserAnalysis } from "@/lib/services/analysisService"
+
 export default function DashboardPage() {
+
+  const [analysis, setAnalysis] = useState<any>(null)
+  const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    loadDashboard()
+  }, [])
+
+  async function loadDashboard() {
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return
+
+    const [analysisResult, subjectsResult] = await Promise.all([
+      getUserAnalysis(user.id),
+      supabase.from("subjects").select("id, name")
+    ])
+
+    setAnalysis(analysisResult)
+
+    if (subjectsResult.data) {
+
+      const map: Record<string, string> = {}
+
+      subjectsResult.data.forEach((subject: any) => {
+        map[subject.id] = subject.name
+      })
+
+      setSubjectsMap(map)
+    }
+  }
+
+  if (!analysis) {
+    return <div className="p-10">Carregando dashboard...</div>
+  }
+
   return (
     <div className="flex min-h-screen bg-background">
 
@@ -19,14 +61,25 @@ export default function DashboardPage() {
 
         <div className="p-6 space-y-6">
 
-          <KpiCards />
+          <KpiCards analysis={analysis} />
 
-          <div className="grid grid-cols-2 gap-6">
-            <ChartsSection />
-            <StrategicSection />
-          </div>
+          {/* MATÉRIAS CRÍTICAS + GANHOS RÁPIDOS */}
+          <StrategicSection
+            analysis={analysis}
+            subjectsMap={subjectsMap}
+          />
 
-          <PriorityTable />
+          {/* GRÁFICOS */}
+          <ChartsSection
+            analysis={analysis}
+            subjectsMap={subjectsMap}
+          />
+
+          {/* MAPA DE PRIORIDADES */}
+          <PriorityTable
+            analysis={analysis}
+            subjectsMap={subjectsMap}
+          />
 
         </div>
 

@@ -48,7 +48,7 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
         criticalSubjects.push({
             subject_id: item.subject_id,
-            performance: (performance * 100).toFixed(1),
+            performance: Number((performance * 100).toFixed(1)),
             impact
         })
 
@@ -65,7 +65,7 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
         priorityMap.push({
             subject_id: item.subject_id,
-            performance: (performance * 100).toFixed(1),
+            performance: Number((performance * 100).toFixed(1)),
             weight: item.question_count,
             status,
             color
@@ -80,7 +80,7 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
         if (gain > 0.5) {
             improvementSimulations.push({
                 subject_id: item.subject_id,
-                gain: gain.toFixed(1)
+                gain: Number(gain.toFixed(1))
             })
         }
 
@@ -120,9 +120,12 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
     const studyScore = Number(((weightedScore / weightedTotal) * 100).toFixed(1))
 
+    const approvalProbability = calculateApprovalProbability(rounded)
+
     const result: StudyAnalysis = {
 
         projectedScore: rounded,
+
         missingPoints: missing > 0 ? Number(missing.toFixed(1)) : 0,
 
         criticalSubjects: criticalSubjects.slice(0, 3),
@@ -133,7 +136,18 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
         strategicSimulations: strategicSimulations.slice(0, 3),
 
-        studyScore
+        studyScore,
+
+        approvalProbability
+
+    }
+
+    function calculateApprovalProbability(score: number) {
+
+        const a = 0.35
+        const logistic = 1 / (1 + Math.exp(-a * (score - 40)))
+
+        return Number((logistic * 100).toFixed(1))
 
     }
 
