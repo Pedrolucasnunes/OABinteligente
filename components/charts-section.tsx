@@ -107,7 +107,7 @@ export function ChartsSection({ analysis, subjectsMap }: Props) {
 
         <CardContent>
 
-          <div className="h-72 mt-4">
+          <div className="h-72 mt-4 overflow-x-auto">
 
             <ResponsiveContainer width="100%" height="100%">
               <BarChart

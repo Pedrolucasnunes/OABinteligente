@@ -47,8 +47,10 @@ export default function DashboardPage() {
   }
 
   if (!analysis) {
-    return <div className="p-10">Carregando dashboard...</div>
+    return <div>Carregando dashboard...</div>
   }
+
+  const hasData = analysis.studyScore > 0
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -64,10 +66,9 @@ export default function DashboardPage() {
           <KpiCards analysis={analysis} />
 
           {/* MATÉRIAS CRÍTICAS + GANHOS RÁPIDOS */}
-          <StrategicSection
-            analysis={analysis}
-            subjectsMap={subjectsMap}
-          />
+          {hasData && (
+            <StrategicSection analysis={analysis} subjectsMap={subjectsMap} />
+          )}
 
           {/* GRÁFICOS */}
           <ChartsSection

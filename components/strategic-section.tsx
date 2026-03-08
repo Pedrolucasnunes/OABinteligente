@@ -14,6 +14,16 @@ export function StrategicSection({ analysis, subjectsMap }: Props) {
   const criticalSubjects = analysis.criticalSubjects || []
   const quickGains = analysis.improvementSimulations || []
 
+  if (analysis.priorityMap.length === 0) {
+    return (
+      <Card className="p-6">
+        <p className="text-sm text-muted-foreground">
+          Resolva mais algumas questões para gerar recomendações estratégicas de estudo.
+        </p>
+      </Card>
+    )
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
 
@@ -44,7 +54,7 @@ export function StrategicSection({ analysis, subjectsMap }: Props) {
 
         <CardContent>
 
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 max-h-[280px] overflow-y-auto pr-2">
 
             {criticalSubjects.map((subject: any, index: number) => {
 
@@ -64,11 +74,11 @@ export function StrategicSection({ analysis, subjectsMap }: Props) {
                     <div className="flex items-center gap-3">
 
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">
-                        {subject.weight || 0} questões
+                        {Math.round(subject.impact)} impacto
                       </span>
 
-                      <span className="text-sm font-black text-chart-3">
-                        {subject.performance}%
+                      <span className="text-sm font-black text-foreground">
+                        +{subject.gain} pontos possíveis
                       </span>
 
                     </div>
@@ -76,12 +86,10 @@ export function StrategicSection({ analysis, subjectsMap }: Props) {
                   </div>
 
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-chart-3/10">
-
                     <div
                       className="h-full rounded-full bg-chart-3 transition-all duration-1000 ease-out"
                       style={{ width: `${subject.performance}%` }}
                     />
-
                   </div>
 
                 </div>
@@ -147,7 +155,9 @@ export function StrategicSection({ analysis, subjectsMap }: Props) {
                       </span>
 
                       <span className="text-sm font-black text-foreground">
-                        {subject.performance || 0}%
+                        <span className="text-sm font-black text-foreground">
+                          +{subject.gain} pontos possíveis
+                        </span>
                       </span>
 
                     </div>

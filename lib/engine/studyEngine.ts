@@ -36,10 +36,9 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
         const stats = grouped[item.subject_id]
 
-        const performance =
-            stats && stats.total > 0
-                ? stats.correct / stats.total
-                : 0
+        if (!stats || stats.total === 0) return
+
+        const performance = stats.correct / stats.total
 
         projected += performance * item.question_count
 
@@ -71,7 +70,7 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
             color
         })
 
-        const simulatedPerformance = 0.7
+        const simulatedPerformance = Math.max(performance + 0.2, 0.7)
 
         const gain =
             (simulatedPerformance * item.question_count) -
@@ -108,10 +107,9 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
         const stats = grouped[item.subject_id]
 
-        const performance =
-            stats && stats.total > 0
-                ? stats.correct / stats.total
-                : 0
+        if (!stats || stats.total === 0) return
+
+        const performance = stats.correct / stats.total
 
         weightedTotal += item.question_count
         weightedScore += performance * item.question_count
@@ -128,7 +126,7 @@ export async function runStudyEngine(uid: string): Promise<StudyAnalysis | null>
 
         missingPoints: missing > 0 ? Number(missing.toFixed(1)) : 0,
 
-        criticalSubjects: criticalSubjects.slice(0, 3),
+        criticalSubjects: criticalSubjects.slice(0, 5),
 
         priorityMap,
 
