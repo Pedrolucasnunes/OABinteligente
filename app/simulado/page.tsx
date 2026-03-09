@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { ProgressBar } from "@/components/simulado/ProgressBar"
+import { QuestionGrid } from "@/components/simulado/QuestionGrid"
+import { AnswerOptions } from "@/components/simulado/AnswerOptions"
+import { NavigationButtons } from "@/components/simulado/NavigationButtons"
 
 export default function Simulado() {
 
@@ -11,9 +15,9 @@ export default function Simulado() {
   const [finished, setFinished] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
-    useEffect(() => {
-      startSimulado()
-    }, [])
+  useEffect(() => {
+    startSimulado()
+  }, [])
 
   async function startSimulado() {
 
@@ -202,9 +206,17 @@ export default function Simulado() {
         Simulado Oficial OAB
       </h1>
 
-      <p className="mb-2">
-        Questão {currentIndex + 1} de {questions.length}
-      </p>
+      <ProgressBar
+        answered={Object.keys(answers).length}
+        total={questions.length}
+      />
+
+      <QuestionGrid
+        questions={questions}
+        answers={answers}
+        currentIndex={currentIndex}
+        setCurrentIndex={setCurrentIndex}
+      />
 
       <div className="bg-white p-6 rounded shadow max-w-xl">
 
@@ -212,30 +224,18 @@ export default function Simulado() {
           {currentQuestion.statement}
         </p>
 
-        <div className="space-y-3">
+        <AnswerOptions
+          question={currentQuestion}
+          answers={answers}
+          handleAnswer={handleAnswer}
+        />
 
-          {["A", "B", "C", "D"].map((letter) => (
-
-            <button
-              key={letter}
-              onClick={() => handleAnswer(letter)}
-              className="w-full text-left p-3 border rounded hover:bg-gray-100"
-            >
-
-              {letter}) {currentQuestion[`option_${letter.toLowerCase()}`]}
-
-            </button>
-
-          ))}
-
-        </div>
-
-        <button
-          onClick={nextQuestion}
-          className="mt-4 bg-black text-white px-4 py-2 rounded"
-        >
-          Próxima
-        </button>
+        <NavigationButtons
+          currentIndex={currentIndex}
+          setCurrentIndex={setCurrentIndex}
+          nextQuestion={nextQuestion}
+          setFinished={setFinished}
+        />
 
       </div>
 
