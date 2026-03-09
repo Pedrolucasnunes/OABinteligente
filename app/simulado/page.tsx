@@ -14,9 +14,11 @@ export default function Simulado() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [finished, setFinished] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [subjects, setSubjects] = useState<Record<string, string>>({})
 
   useEffect(() => {
     startSimulado()
+    fetchSubjects()
   }, [])
 
   async function startSimulado() {
@@ -82,6 +84,24 @@ export default function Simulado() {
     examQuestions = examQuestions.sort(() => Math.random() - 0.5)
 
     setQuestions(examQuestions)
+
+  }
+
+  async function fetchSubjects() {
+
+    const { data } = await supabase
+      .from("subjects")
+      .select("id, name")
+
+    if (!data) return
+
+    const map: Record<string, string> = {}
+
+    data.forEach((s) => {
+      map[s.id] = s.name
+    })
+
+    setSubjects(map)
 
   }
 
@@ -234,7 +254,7 @@ export default function Simulado() {
               >
 
                 <span>
-                  {s.subject}
+                  {subjects[s.subject] || s.subject}
                 </span>
 
                 <span className="font-semibold">
@@ -308,7 +328,7 @@ export default function Simulado() {
           currentIndex={currentIndex}
           setCurrentIndex={setCurrentIndex}
           nextQuestion={nextQuestion}
-          setFinished={setFinished}
+          finishSimulado={finishSimulado}
         />
 
       </div>

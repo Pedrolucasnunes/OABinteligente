@@ -1,4 +1,4 @@
-export function NavigationButtons({ currentIndex, setCurrentIndex, nextQuestion, setFinished }: any) {
+export function NavigationButtons({ currentIndex, setCurrentIndex, nextQuestion, finishSimulado }: any) {
 
   return (
 
@@ -19,7 +19,7 @@ export function NavigationButtons({ currentIndex, setCurrentIndex, nextQuestion,
       </button>
 
       <button
-        onClick={() => setFinished(true)}
+        onClick={finishSimulado}
         className="bg-green-600 text-white px-4 py-2 rounded"
       >
         Finalizar
