@@ -70,6 +70,7 @@ export default function Simulado() {
         .select("*")
         .eq("subject_id", item.subject_id)
         .limit(item.question_count)
+        .order("created_at", { ascending: false })
 
       if (subjectQuestions) {
         examQuestions = [...examQuestions, ...subjectQuestions]
@@ -93,28 +94,9 @@ export default function Simulado() {
       [question.id]: option
     }))
 
-    await saveAttempt(question, option)
-
   }
 
   async function nextQuestion() {
-
-    const currentQuestion = questions[currentIndex]
-    const selected = answers[currentQuestion.id]
-
-    if (sessionId && selected) {
-
-      await supabase.from("attempts").insert({
-
-        question_id: currentQuestion.id,
-        subject_id: currentQuestion.subject_id,
-        selected_option: selected,
-        is_correct: selected === currentQuestion.correct_option,
-        exam_session: sessionId
-
-      })
-
-    }
 
     if (currentIndex + 1 < questions.length) {
       setCurrentIndex(currentIndex + 1)
@@ -138,44 +120,37 @@ export default function Simulado() {
 
   }
 
-  async function saveAttempt(question: any, selectedOption: string) {
+  async function saveAttemptsBatch() {
 
     const { data: { user } } = await supabase.auth.getUser()
-
     if (!user) return
 
-    const isCorrect = selectedOption === question.correct_option
+    const attempts = questions
+      .filter((q) => answers[q.id])
+      .map((q) => {
 
-    await supabase.from("attempts").insert({
-      question_id: question.id,
-      selected_option: selectedOption,
-      is_correct: isCorrect,
-      subject_id: question.subject_id,
-      user_id: user.id,
-      exam_session_id: sessionId
-    })
+        const selected = answers[q.id]
 
-  }
+        return {
+          question_id: q.id,
+          subject_id: q.subject_id,
+          selected_option: selected,
+          is_correct: selected === q.correct_option,
+          user_id: user.id,
+          exam_session_id: sessionId
+        }
 
-  async function saveResult() {
-
-    const correct = calculateResult()
-    const total = questions.length
-    const percentage = (correct / total) * 100
-
-    await supabase
-      .from("exam_sessions")
-      .update({
-        correct_answers: correct,
-        percentage: percentage,
-        approved: correct >= 40,
-        finished_at: new Date().toISOString()
       })
-      .eq("id", sessionId)
+
+    await supabase.from("attempts").insert(attempts)
 
   }
 
   async function finishSimulado() {
+
+    if (finished) return
+
+    await saveAttemptsBatch()
 
     const correct = calculateResult()
     const total = questions.length
