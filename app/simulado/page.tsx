@@ -84,14 +84,16 @@ export default function Simulado() {
 
   }
 
-  function handleAnswer(option: string) {
+  async function handleAnswer(option: string) {
 
-    const currentQuestion = questions[currentIndex]
+    const question = questions[currentIndex]
 
-    setAnswers({
-      ...answers,
-      [currentQuestion.id]: option
-    })
+    setAnswers(prev => ({
+      ...prev,
+      [question.id]: option
+    }))
+
+    await saveAttempt(question, option)
 
   }
 
@@ -133,6 +135,43 @@ export default function Simulado() {
     })
 
     return correct
+
+  }
+
+  async function saveAttempt(question: any, selectedOption: string) {
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return
+
+    const isCorrect = selectedOption === question.correct_option
+
+    await supabase.from("attempts").insert({
+      question_id: question.id,
+      selected_option: selectedOption,
+      is_correct: isCorrect,
+      subject_id: question.subject_id,
+      user_id: user.id,
+      exam_session_id: sessionId
+    })
+
+  }
+
+  async function saveResult() {
+
+    const correct = calculateResult()
+    const total = questions.length
+    const percentage = (correct / total) * 100
+
+    await supabase
+      .from("exam_sessions")
+      .update({
+        correct_answers: correct,
+        percentage: percentage,
+        approved: correct >= 40,
+        finished_at: new Date().toISOString()
+      })
+      .eq("id", sessionId)
 
   }
 
