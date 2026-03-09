@@ -120,6 +120,35 @@ export default function Simulado() {
 
   }
 
+  function calculateSubjectPerformance() {
+
+    const stats: Record<string, { correct: number; total: number }> = {}
+
+    questions.forEach((q) => {
+
+      const subject = q.subject_id
+
+      if (!stats[subject]) {
+        stats[subject] = { correct: 0, total: 0 }
+      }
+
+      stats[subject].total++
+
+      if (answers[q.id] === q.correct_option) {
+        stats[subject].correct++
+      }
+
+    })
+
+    return Object.entries(stats).map(([subject, data]) => ({
+      subject,
+      accuracy: Math.round((data.correct / data.total) * 100),
+      correct: data.correct,
+      total: data.total
+    }))
+
+  }
+
   async function saveAttemptsBatch() {
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -179,6 +208,7 @@ export default function Simulado() {
     const correct = calculateResult()
     const total = questions.length
     const percentage = ((correct / total) * 100).toFixed(1)
+    const subjectPerformance = calculateSubjectPerformance()
 
     return (
 
@@ -188,6 +218,36 @@ export default function Simulado() {
           Resultado do Simulado
         </h1>
 
+        <div className="mt-8">
+
+          <h2 className="text-xl font-bold mb-4">
+            Desempenho por matéria
+          </h2>
+
+          <div className="space-y-3">
+
+            {subjectPerformance.map((s) => (
+
+              <div
+                key={s.subject}
+                className="flex justify-between bg-gray-50 p-3 rounded"
+              >
+
+                <span>
+                  {s.subject}
+                </span>
+
+                <span className="font-semibold">
+                  {s.correct}/{s.total} ({s.accuracy}%)
+                </span>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </div>
         <div className="bg-white p-6 rounded shadow max-w-xl">
 
           <p className="text-lg">
