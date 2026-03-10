@@ -65,6 +65,8 @@ function CustomLineTooltip({ active, payload, label }: any) {
 export function ChartsSection({ analysis, subjectsMap }: Props) {
   // ===== PERFORMANCE POR MATÉRIA =====
 
+    if (!analysis?.priorityMap?.length) return null
+    
   const subjectPerformance = analysis.priorityMap.map((subject) => {
 
     let fill = "var(--color-chart-1)"

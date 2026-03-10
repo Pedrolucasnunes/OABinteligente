@@ -9,6 +9,7 @@ import { KpiCards } from "@/components/kpi-cards"
 import { ChartsSection } from "@/components/charts-section"
 import { PriorityTable } from "@/components/priority-table"
 import { StrategicSection } from "@/components/strategic-section"
+import { ApprovalProgress } from "@/components/approval-progress"
 
 import { getUserAnalysis } from "@/lib/services/analysisService"
 
@@ -32,6 +33,7 @@ export default function DashboardPage() {
       supabase.from("subjects").select("id, name")
     ])
 
+    console.log("ANALYSIS", analysisResult)
     setAnalysis(analysisResult)
 
     if (subjectsResult.data) {
@@ -62,7 +64,27 @@ export default function DashboardPage() {
         <DashboardHeader />
 
         <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6">
 
+            <ApprovalProgress analysis={analysis} />
+
+            <KpiCards analysis={analysis} />
+
+            {hasData && (
+              <StrategicSection analysis={analysis} subjectsMap={subjectsMap} />
+            )}
+
+            <ChartsSection
+              analysis={analysis}
+              subjectsMap={subjectsMap}
+            />
+
+            <PriorityTable
+              analysis={analysis}
+              subjectsMap={subjectsMap}
+            />
+
+          </div>
           <KpiCards analysis={analysis} />
 
           {/* MATÉRIAS CRÍTICAS + GANHOS RÁPIDOS */}
