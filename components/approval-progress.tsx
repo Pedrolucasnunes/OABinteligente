@@ -17,7 +17,7 @@ export function ApprovalProgress({ analysis }: Props) {
 
   return (
 
-    <Card className="border border-border/40 bg-card shadow-sm">
+    <Card className="border border-border/40 bg-card shadow-sm h-full">
 
       <CardContent className="p-6">
 

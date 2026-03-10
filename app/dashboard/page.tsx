@@ -11,12 +11,22 @@ import { PriorityTable } from "@/components/priority-table"
 import { StrategicSection } from "@/components/strategic-section"
 import { ApprovalProgress } from "@/components/approval-progress"
 
+// NOVOS IMPORTS
+import { useSimuladoStats } from "@/hooks/useSimuladoStats"
+import { SimuladoSummary } from "@/components/simulado-summary"
+
 import { getUserAnalysis } from "@/lib/services/analysisService"
 
 export default function DashboardPage() {
 
   const [analysis, setAnalysis] = useState<any>(null)
   const [subjectsMap, setSubjectsMap] = useState<Record<string, string>>({})
+
+  // NOVO STATE
+  const [userId, setUserId] = useState<string | null>(null)
+
+  // NOVO HOOK
+  const simuladoStats = useSimuladoStats(userId)
 
   useEffect(() => {
     loadDashboard()
@@ -28,14 +38,18 @@ export default function DashboardPage() {
 
     if (!user) return
 
+    // salva userId para usar no hook
+    setUserId(user.id)
+
     const [analysisResult, subjectsResult] = await Promise.all([
       getUserAnalysis(user.id),
       supabase.from("subjects").select("id, name")
     ])
 
     console.log("ANALYSIS", analysisResult)
-    setAnalysis(analysisResult)
 
+    setAnalysis(analysisResult)
+    
     if (subjectsResult.data) {
 
       const map: Record<string, string> = {}
@@ -64,28 +78,15 @@ export default function DashboardPage() {
         <DashboardHeader />
 
         <div className="p-6 space-y-6">
-          <div className="p-6 space-y-6">
 
-            <ApprovalProgress analysis={analysis} />
-
-            <KpiCards analysis={analysis} />
-
-            {hasData && (
-              <StrategicSection analysis={analysis} subjectsMap={subjectsMap} />
-            )}
-
-            <ChartsSection
-              analysis={analysis}
-              subjectsMap={subjectsMap}
-            />
-
-            <PriorityTable
-              analysis={analysis}
-              subjectsMap={subjectsMap}
-            />
-
-          </div>
           <KpiCards analysis={analysis} />
+
+          {/* NOVO CARD DE SIMULADOS */}
+          <SimuladoSummary
+            total={simuladoStats.total}
+            bestScore={simuladoStats.bestScore}
+            lastScore={simuladoStats.lastScore}
+          />
 
           {/* MATÉRIAS CRÍTICAS + GANHOS RÁPIDOS */}
           {hasData && (
