@@ -14,6 +14,7 @@ import { ApprovalProgress } from "@/components/approval-progress"
 // NOVOS IMPORTS
 import { useSimuladoStats } from "@/hooks/useSimuladoStats"
 import { SimuladoSummary } from "@/components/simulado-summary"
+import { RecoverablePoints } from "@/components/recoverable-points"
 
 import { getUserAnalysis } from "@/lib/services/analysisService"
 
@@ -80,6 +81,9 @@ export default function DashboardPage() {
         <div className="p-6 space-y-6">
 
           <KpiCards analysis={analysis} />
+
+          {/* NOVO CARD DE PONTOS RECUPERÁVEIS */}
+          <RecoverablePoints analysis={analysis} />
 
           {/* NOVO CARD DE SIMULADOS */}
           <SimuladoSummary
